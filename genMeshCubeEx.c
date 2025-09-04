@@ -1,3 +1,80 @@
+#if 0
+#include "raylib.h"
+#include <math.h>
+
+#define SPHERE_RADIUS 10.0f
+#define SPHERE_RESOLUTION 256 // Risoluzione della sfera
+
+// Funzione per ottenere il colore da una texture in base a coordinate sferiche
+Color GetColorFromTexture(Image image, float longitude, float latitude) {
+    // Calcola le coordinate del pixel
+    int x = (int)((longitude + 180.0f) / 360.0f * image.width) % image.width;
+    int y = (int)((latitude + 90.0f) / 180.0f * image.height) % image.height;
+
+    return GetImageColor(image, x, y);
+}
+
+int main(void)
+{
+    const int screenWidth = 800;
+    const int screenHeight = 600;
+    InitWindow(screenWidth, screenHeight, "Proiezione di un'immagine su una sfera");
+
+    // Carica la texture
+    Image image = LoadImage("/media/ciccio/92de1001-dd72-4a54-a6ae-02af7976c4da/home/_offoF/gebco_08_rev_elev_21600x10800.png");
+
+    // Imposta la telecamera
+    Camera camera = { 0 };
+    camera.position = (Vector3){ 0.0f, 0.0f, 15.0f };
+    camera.target = (Vector3){ 0.0f, 0.0f, 0.0f };
+    camera.up = (Vector3){ 0.0f, 1.0f, 0.0f };
+    camera.fovy = 45.0f;
+
+    SetTargetFPS(60);
+
+    DisableCursor();
+
+    while (!WindowShouldClose())
+    {
+        UpdateCamera(&camera, CAMERA_FREE);
+
+        BeginDrawing();
+        ClearBackground(RAYWHITE);
+
+        BeginMode3D(camera);
+
+        // Disegna la sfera con la proiezione dell'immagine
+        for (int i = 0; i < SPHERE_RESOLUTION; i++) {
+            for (int j = 0; j < SPHERE_RESOLUTION; j++) {
+                // Calcola la longitudine e latitudine
+                float longitude = (float)i / (SPHERE_RESOLUTION - 1) * 360.0f - 180.0f;
+                float latitude = (float)j / (SPHERE_RESOLUTION - 1) * 180.0f - 90.0f;
+
+                // Calcola le coordinate 3D sulla sfera
+                float x = SPHERE_RADIUS * cosf(DEG2RAD*latitude) * cosf(DEG2RAD*longitude);
+                float y = SPHERE_RADIUS * sinf(DEG2RAD*latitude);
+                float z = SPHERE_RADIUS * cosf(DEG2RAD*latitude) * sinf(DEG2RAD*longitude);
+
+                // Ottieni il colore dalla texture
+                Color color = GetColorFromTexture(image, longitude, latitude);
+
+                // Disegna un punto sulla sfera
+                DrawCube((Vector3){ x, -y, z }, 0.2f, 0.2f, 0.2f, color);
+            }
+        }
+
+        EndMode3D();
+        DrawText("Proiezione di un'immagine su una sfera", 10, 10, 20, DARKGRAY);
+        EndDrawing();
+    }
+
+    UnloadImage(image);
+
+    CloseWindow();
+
+    return 0;
+}
+#else
 #include <stdio.h>
 #include <string.h>
 
@@ -25,6 +102,39 @@ static Mesh GenMeshPlaneEx(Vector3 normal, float width, float length, float dept
 static Mesh GenMeshCubeEx(float width, float length, float depth, int resX, int resY, int resZ);
 static Mesh GenMeshSphereEx(float radius, int resolution);
 
+typedef struct
+{
+    float longitude;
+    float latitude;
+} Coordinate;
+
+// Calculate latitude and longitude (in radians) from point on unit sphere
+static Coordinate pointToCoordinate(Vector3 pointOnUnitSphere)
+{
+    float latitude = asinf(pointOnUnitSphere.y);
+    float longitude = atan2f(pointOnUnitSphere.x, -pointOnUnitSphere.z);
+    return (Coordinate){latitude, longitude};
+}
+
+// Calculate point on unit sphere given latitude and longitude (in radians)
+static Vector3 coordinateToPoint(Coordinate coordinate)
+{
+    float y =  sinf(coordinate.latitude);
+    float r =  cosf(coordinate.latitude);
+    float x =  sinf(coordinate.longitude) * r;
+    float z = -cosf(coordinate.longitude) * r;
+    return (Vector3){x, y, z};
+}
+
+float map(float input, float input_start, float input_end, float output_start, float output_end)
+{
+    float slope = 1.0 * (output_end - output_start) / (input_end - input_start);
+//    float output = output_start + round(slope * (input - input_start));
+    /** CHECH output VARIABLE. Should be rounded? **/
+    float output = output_start + slope * (input - input_start);
+    return output;
+}
+
 //------------------------------------------------------------------------------------
 // Program main entry point
 //------------------------------------------------------------------------------------
@@ -38,16 +148,16 @@ int main(void)
     InitWindow(screenWidth, screenHeight, "raylib [models] example - mesh generation");
 
     // We generate a checked image for texturing
-    Image checked = GenImageChecked(512, 512, 256, 256, BLUE, YELLOW);
-    Texture2D texture = LoadTextureFromImage(checked);
-    UnloadImage(checked);
+//    Image image = GenImageChecked(512, 512, 256, 256, BLUE, YELLOW);
+    Image image = LoadImage("Colour_8192x4096.jpg");
+    Texture2D texture = LoadTextureFromImage(image);
 
     Model plane = { 0 };
     Model cube = { 0 };
     Model sphere = { 0 };
     plane = LoadModelFromMesh(GenMeshPlaneEx(up, 10, 10, 0.001f, 25, 25));
     cube = LoadModelFromMesh(GenMeshCubeEx(5, 5, 5, 25, 25, 25));
-    sphere = LoadModelFromMesh(GenMeshSphereEx(3.5, 25));
+    sphere = LoadModelFromMesh(GenMeshSphereEx(3.5, 100));
 
     // Generated meshes could be exported as .obj files
     //ExportMesh(models.meshes[0], "plane.obj");
@@ -87,17 +197,49 @@ int main(void)
         //----------------------------------------------------------------------------------
         BeginDrawing();
 
-            ClearBackground(BLACK);
+            ClearBackground(DARKGRAY);
 
             BeginMode3D(camera); {
 
-                DrawModel(plane, position, 1.0f, WHITE);
-                DrawModel(cube, position, 1.0f, WHITE);
-                DrawModel(sphere, position, 1.0f, WHITE);
-                DrawModelWires(plane, position, 1.0f, RED);
-                DrawModelWires(cube, position, 1.001f, RED);
-                DrawModelWires(sphere, position, 1.001f, RED);
+//                DrawModel(plane, position, 1.0f, WHITE);
+//                DrawModel(cube, position, 1.0f, WHITE);
+                DrawModel(sphere, position, 1.0f, BLUE);
+//                DrawModelWires(plane, position, 1.0f, RED);
+//                DrawModelWires(cube, position, 1.001f, RED);
+//                DrawModelWires(sphere, position, 1.001f, RED);
                 DrawGrid(10, 1.0);
+
+                // Disegna la sfera con la proiezione dell'immagine
+                for (int i = 0; i < sphere.meshes[0].vertexCount; ++i) {
+                    Vector3 v = {
+                            sphere.meshes[0].vertices[i*3+0],
+                            sphere.meshes[0].vertices[i*3+1],
+                            sphere.meshes[0].vertices[i*3+2]
+                    };
+
+                    v = Vector3Normalize(v);
+
+                    Coordinate coor = pointToCoordinate(v);
+
+                    float lat = map(coor.latitude, +M_PI, -M_PI, 0.0f, 1.0f);
+                    float lon = map(coor.longitude, +M_PI_2, -M_PI_2, 0.0f, 1.0f);
+
+                    float x_ = lat * (image.width-1);
+                    float y_ = lon * (image.height-1);
+
+                    Color col = GetImageColor(image, x_, y_);
+
+                    lat = coor.latitude;
+                    lon = coor.longitude;
+
+                    Vector3 point = coordinateToPoint((Coordinate){lat, lon});
+
+                    #define SPHERE_RADIUS 2.0f
+
+                    point = Vector3Scale(point, SPHERE_RADIUS);
+
+                    DrawCube(point, 0.025f, 0.025f, 0.025f, col);
+                }
 
                 Vector3 pos;
                 pos = (Vector3){0, 0, 0};
@@ -121,6 +263,7 @@ int main(void)
 
     // De-Initialization
     //--------------------------------------------------------------------------------------
+    UnloadImage(image);
     UnloadTexture(texture); // Unload texture
 
     // Unload models data (GPU VRAM)
@@ -369,3 +512,4 @@ static Mesh GenMeshSphereEx(float radius, int resolution)
 
     return mesh;
 }
+#endif
