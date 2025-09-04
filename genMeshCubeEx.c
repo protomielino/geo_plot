@@ -5,6 +5,22 @@
 #define RAYMATH_IMPLEMENTATION
 #include <raymath.h>
 
+const Vector3 up      = {  0,  1,  0 };
+const Vector3 down    = {  0, -1,  0 };
+const Vector3 right   = {  1,  0,  0 };
+const Vector3 left    = { -1,  0,  0 };
+const Vector3 front   = {  0,  0,  1 };
+const Vector3 back    = {  0,  0, -1 };
+Vector3 faceNormal[] = {
+        up,
+        down,
+        right,
+        left,
+        front,
+        back
+};
+int numNormals = sizeof(faceNormal)/sizeof(faceNormal[0]);
+
 static Mesh GenMeshPlaneEx(Vector3 normal, float width, float length, float depth, int resX, int resY);
 static Mesh GenMeshCubeEx(float width, float length, float depth, int resX, int resY, int resZ);
 static Mesh GenMeshSphereEx(float radius, int resolution);
@@ -26,22 +42,27 @@ int main(void)
     Texture2D texture = LoadTextureFromImage(checked);
     UnloadImage(checked);
 
-    Model models = { 0 };
-//    models = LoadModelFromMesh(GenMeshCubeEx(5, 5, 5, 25, 25, 25));
-    models = LoadModelFromMesh(GenMeshSphereEx(5, 25));
+    Model plane = { 0 };
+    Model cube = { 0 };
+    Model sphere = { 0 };
+    plane = LoadModelFromMesh(GenMeshPlaneEx(up, 10, 10, 0.001f, 25, 25));
+    cube = LoadModelFromMesh(GenMeshCubeEx(5, 5, 5, 25, 25, 25));
+    sphere = LoadModelFromMesh(GenMeshSphereEx(3.5, 25));
 
     // Generated meshes could be exported as .obj files
     //ExportMesh(models.meshes[0], "plane.obj");
 
     // Set checked texture as default diffuse component for all models material
-    models.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = texture;
+    plane.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = texture;
+    cube.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = texture;
+    sphere.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = texture;
 
     // Define the camera to look into our 3d world
     Camera camera = {
-            position:   { 5.0f, 5.0f, 5.0f },
+            position:   { 10.0f, 10.0f, 10.0f },
             target:     { 0.0f, 0.0f, 0.0f },
             up:         { 0.0f, 1.0f, 0.0f },
-            fovy:       60.0f,
+            fovy:       45.0f,
             projection: 0
     };
 
@@ -70,13 +91,18 @@ int main(void)
 
             BeginMode3D(camera); {
 
-//                DrawModel(models, position, 1.0f, WHITE);
-                DrawModelWires(models, position, 1.0f, WHITE);
-//                DrawGrid(10, 1.0);
+                DrawModel(plane, position, 1.0f, WHITE);
+                DrawModel(cube, position, 1.0f, WHITE);
+                DrawModel(sphere, position, 1.0f, WHITE);
+                DrawModelWires(plane, position, 1.0f, RED);
+                DrawModelWires(cube, position, 1.001f, RED);
+                DrawModelWires(sphere, position, 1.001f, RED);
+                DrawGrid(10, 1.0);
 
                 Vector3 pos;
                 pos = (Vector3){0, 0, 0};
                 DrawCubeWires(pos, 2.01, 2.01, 2, MAGENTA);
+                
                 pos = (Vector3){2, 0, 0};
                 DrawCubeWires(pos, 0.1, 0.1, 0.1, MAROON);
                 DrawLine3D(Vector3Zero(), pos, MAROON);
@@ -99,166 +125,14 @@ int main(void)
 
     // Unload models data (GPU VRAM)
 
-    UnloadModel(models);
+    UnloadModel(plane);
+    UnloadModel(cube);
+    UnloadModel(sphere);
 
     CloseWindow();          // Close window and OpenGL context
     //--------------------------------------------------------------------------------------
 
     return 0;
-}
-
-const Vector3 up      = {  0,  1,  0 };
-const Vector3 down    = {  0, -1,  0 };
-const Vector3 right   = {  1,  0,  0 };
-const Vector3 left    = { -1,  0,  0 };
-const Vector3 front   = {  0,  0,  1 };
-const Vector3 back    = {  0,  0, -1 };
-Vector3 faceNormal[] = {
-        up,
-        down,
-        right,
-        left,
-        front,
-        back
-};
-
-int numNormals = sizeof(faceNormal)/sizeof(faceNormal[0]);
-
-// Generate plane mesh (with subdivisions)
-static Mesh GenMeshSphereEx(float radius, int resolution)
-{
-    Mesh cube = GenMeshCubeEx(1, 1, 1, resolution, resolution, resolution);
-
-    Mesh mesh = {};
-
-    mesh.vertexCount = cube.vertexCount;
-    mesh.triangleCount = cube.triangleCount;
-
-    mesh.vertices = (float *)RL_MALLOC(mesh.vertexCount*3*sizeof(float));
-    mesh.texcoords = (float *)RL_MALLOC(mesh.vertexCount*2*sizeof(float));
-    mesh.normals = (float *)RL_MALLOC(mesh.vertexCount*3*sizeof(float));
-    mesh.indices = (unsigned short *)RL_MALLOC(mesh.triangleCount*3*sizeof(unsigned short));
-
-    // Mesh vertices position array
-    Vector3 v = {};
-    for (int i = 0; i < mesh.vertexCount; ++i) {
-        v.x = cube.vertices[3*i + 0];
-        v.y = cube.vertices[3*i + 1];
-        v.z = cube.vertices[3*i + 2];
-
-#if 0
-        v = Vector3Normalize(v);
-        v = Vector3Scale(v, radius);
-#else
-        float x2_ = v.x * v.x;
-        float y2_ = v.y * v.y;
-        float z2_ = v.z * v.z;
-        float x_ = v.x * sqrt(1.0f - (y2_ + z2_) / 2.0f + (y2_ * z2_) / 3.0f);
-        float y_ = v.y * sqrt(1.0f - (z2_ + x2_) / 2.0f + (z2_ * x2_) / 3.0f);
-        float z_ = v.z * sqrt(1.0f - (x2_ + y2_) / 2.0f + (x2_ * y2_) / 3.0f);
-        v = (Vector3){x_, y_, z_};
-        v = Vector3Normalize(v);
-        v = Vector3Scale(v, radius);
-#endif
-
-        mesh.vertices[3*i + 0] = v.x;
-        mesh.vertices[3*i + 1] = v.y;
-        mesh.vertices[3*i + 2] = v.z;
-    }
-    // Mesh texcoords array
-    for (int i = 0; i < mesh.vertexCount; i++) {
-        mesh.texcoords[2*i + 0] = cube.texcoords[2*i + 0];
-        mesh.texcoords[2*i + 1] = cube.texcoords[2*i + 1];
-    }
-
-    // Mesh normals array
-    for (int i = 0; i < mesh.vertexCount; i++) {
-        mesh.normals[3*i + 0] = cube.normals[3*i + 0];
-        mesh.normals[3*i + 1] = cube.normals[3*i + 1];
-        mesh.normals[3*i + 2] = cube.normals[3*i + 2];
-    }
-
-    // Mesh indices array initialization
-    for (int i = 0; i < mesh.triangleCount*3; i++) {
-        mesh.indices[i] = cube.indices[i];
-    }
-
-    // Upload vertex data to GPU (static mesh)
-    UploadMesh(&mesh, false);
-
-    UnloadMesh(cube);
-
-    return mesh;
-}
-
-// Generate plane mesh (with subdivisions)
-static Mesh GenMeshCubeEx(float width, float length, float depth, int resX, int resY, int resZ)
-{
-    Mesh mesh = {};
-
-    int vertexCount =
-            (resX+1)*(resZ+1)*2+
-            (resX+1)*(resY+1)*2+
-            (resZ+1)*(resY+1)*2;
-    int numFaces =
-            resX*resZ*2+
-            resX*resY*2+
-            resZ*resY*2;
-    int numTriangles = numFaces * 2;
-
-    mesh.vertexCount = vertexCount;
-    mesh.triangleCount = numTriangles;
-    mesh.vertices = (float *)RL_MALLOC(mesh.vertexCount*3*sizeof(float));
-    mesh.texcoords = (float *)RL_MALLOC(mesh.vertexCount*2*sizeof(float));
-    mesh.normals = (float *)RL_MALLOC(mesh.vertexCount*3*sizeof(float));
-    mesh.indices = (unsigned short *)RL_MALLOC(mesh.triangleCount*3*sizeof(unsigned short));
-
-    int cursorVertices = 0;
-    int cursorTriangles = 0;
-    int totVerts = 0;
-    Mesh plane = {};
-    for (int fi = 0; fi < numNormals; ++fi) {
-        switch (fi) {
-            case 0:
-                plane = GenMeshPlaneEx(up, width, depth, length, resX, resZ);
-                break;
-            case 1:
-                plane = GenMeshPlaneEx(down, width, depth, length, resX, resZ);
-                break;
-            case 2:
-                plane = GenMeshPlaneEx(right, depth, length, width, resZ, resY);
-                break;
-            case 3:
-                plane = GenMeshPlaneEx(left, depth, length, width, resZ, resY);
-                break;
-            case 4:
-                plane = GenMeshPlaneEx(front, length, width, depth, resY, resX);
-                break;
-            case 5:
-                plane = GenMeshPlaneEx(back, length, width, depth, resY, resX);
-                break;
-            default:
-                break;
-        }
-
-        memcpy(&mesh.vertices[cursorVertices*3], plane.vertices, plane.vertexCount*3*sizeof(float));
-        memcpy(&mesh.normals[cursorVertices*3], plane.normals, plane.vertexCount*3*sizeof(float));
-        memcpy(&mesh.texcoords[cursorVertices*2], plane.texcoords, plane.vertexCount*2*sizeof(float));
-        cursorVertices += plane.vertexCount;
-
-        for (int i = cursorTriangles*3, j = 0; j < plane.triangleCount*3; ++i, j++) {
-            mesh.indices[i] = plane.indices[j]+totVerts;
-        }
-        totVerts += plane.vertexCount;
-        cursorTriangles += plane.triangleCount;
-
-        UnloadMesh(plane);
-    }
-
-    // Upload vertex data to GPU (static mesh)
-    UploadMesh(&mesh, false);
-
-    return mesh;
 }
 
 // Generate plane mesh (with subdivisions) oriented by normal
@@ -363,6 +237,135 @@ static Mesh GenMeshPlaneEx(Vector3 normal, float width, float length, float dept
 
     // Upload vertex data to GPU (static mesh)
     UploadMesh(&mesh, false);
+
+    return mesh;
+}
+
+// Generate plane mesh (with subdivisions)
+static Mesh GenMeshCubeEx(float width, float length, float depth, int resX, int resY, int resZ)
+{
+    Mesh mesh = {};
+
+    int vertexCount =
+            (resX+1)*(resZ+1)*2+
+            (resX+1)*(resY+1)*2+
+            (resZ+1)*(resY+1)*2;
+    int numFaces =
+            resX*resZ*2+
+            resX*resY*2+
+            resZ*resY*2;
+    int numTriangles = numFaces * 2;
+
+    mesh.vertexCount = vertexCount;
+    mesh.triangleCount = numTriangles;
+    mesh.vertices = (float *)RL_MALLOC(mesh.vertexCount*3*sizeof(float));
+    mesh.texcoords = (float *)RL_MALLOC(mesh.vertexCount*2*sizeof(float));
+    mesh.normals = (float *)RL_MALLOC(mesh.vertexCount*3*sizeof(float));
+    mesh.indices = (unsigned short *)RL_MALLOC(mesh.triangleCount*3*sizeof(unsigned short));
+
+    int cursorVertices = 0;
+    int cursorTriangles = 0;
+    int totVerts = 0;
+    Mesh plane = {};
+    for (int fi = 0; fi < numNormals; ++fi) {
+        switch (fi) {
+            case 0:
+                plane = GenMeshPlaneEx(up, width, depth, length, resX, resZ);
+                break;
+            case 1:
+                plane = GenMeshPlaneEx(down, width, depth, length, resX, resZ);
+                break;
+            case 2:
+                plane = GenMeshPlaneEx(right, depth, length, width, resZ, resY);
+                break;
+            case 3:
+                plane = GenMeshPlaneEx(left, depth, length, width, resZ, resY);
+                break;
+            case 4:
+                plane = GenMeshPlaneEx(front, length, width, depth, resY, resX);
+                break;
+            case 5:
+                plane = GenMeshPlaneEx(back, length, width, depth, resY, resX);
+                break;
+            default:
+                break;
+        }
+
+        memcpy(&mesh.vertices[cursorVertices*3], plane.vertices, plane.vertexCount*3*sizeof(float));
+        memcpy(&mesh.normals[cursorVertices*3], plane.normals, plane.vertexCount*3*sizeof(float));
+        memcpy(&mesh.texcoords[cursorVertices*2], plane.texcoords, plane.vertexCount*2*sizeof(float));
+        cursorVertices += plane.vertexCount;
+
+        for (int i = cursorTriangles*3, j = 0; j < plane.triangleCount*3; ++i, j++) {
+            mesh.indices[i] = plane.indices[j]+totVerts;
+        }
+        totVerts += plane.vertexCount;
+        cursorTriangles += plane.triangleCount;
+
+        UnloadMesh(plane);
+    }
+
+    // Upload vertex data to GPU (static mesh)
+    UploadMesh(&mesh, false);
+
+    return mesh;
+}
+
+// Generate plane mesh (with subdivisions)
+static Mesh GenMeshSphereEx(float radius, int resolution)
+{
+    Mesh cube = GenMeshCubeEx(1, 1, 1, resolution, resolution, resolution);
+
+    Mesh mesh = {};
+
+    mesh.vertexCount = cube.vertexCount;
+    mesh.triangleCount = cube.triangleCount;
+
+    mesh.vertices = (float *)RL_MALLOC(mesh.vertexCount*3*sizeof(float));
+    mesh.texcoords = (float *)RL_MALLOC(mesh.vertexCount*2*sizeof(float));
+    mesh.normals = (float *)RL_MALLOC(mesh.vertexCount*3*sizeof(float));
+    mesh.indices = (unsigned short *)RL_MALLOC(mesh.triangleCount*3*sizeof(unsigned short));
+
+    // Mesh vertices position array
+    Vector3 v = {};
+    for (int i = 0; i < mesh.vertexCount; ++i) {
+        v.x = cube.vertices[3*i + 0];
+        v.y = cube.vertices[3*i + 1];
+        v.z = cube.vertices[3*i + 2];
+
+#if 0 
+// normal ("pinched") projextion
+        v = Vector3Normalize(v);
+        v = Vector3Scale(v, radius);
+#else
+// uniform projextion
+        float x2_ = v.x * v.x;
+        float y2_ = v.y * v.y;
+        float z2_ = v.z * v.z;
+        float x_ = v.x * sqrt(1.0f - (y2_ + z2_) / 2.0f + (y2_ * z2_) / 3.0f);
+        float y_ = v.y * sqrt(1.0f - (z2_ + x2_) / 2.0f + (z2_ * x2_) / 3.0f);
+        float z_ = v.z * sqrt(1.0f - (x2_ + y2_) / 2.0f + (x2_ * y2_) / 3.0f);
+        v = (Vector3){x_, y_, z_};
+        v = Vector3Normalize(v);
+        v = Vector3Scale(v, radius);
+#endif
+
+        mesh.vertices[3*i + 0] = v.x;
+        mesh.vertices[3*i + 1] = v.y;
+        mesh.vertices[3*i + 2] = v.z;
+    }
+
+    // Mesh texcoords array
+    memcpy(mesh.texcoords, cube.texcoords, mesh.vertexCount*2*sizeof(float));
+    // Mesh normals array
+    memcpy(mesh.normals, cube.normals, mesh.vertexCount*3*sizeof(float));
+    // Mesh indices array initialization
+    memcpy(mesh.indices, cube.indices, mesh.triangleCount*3*sizeof(unsigned short));
+
+    // Upload vertex data to GPU (static mesh)
+    UploadMesh(&mesh, false);
+
+    UnloadMesh(cube);
 
     return mesh;
 }
