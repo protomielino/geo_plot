@@ -203,7 +203,7 @@ int main(void)
 
 //                DrawModel(plane, position, 1.0f, WHITE);
 //                DrawModel(cube, position, 1.0f, WHITE);
-                DrawModel(sphere, position, 1.0f, BLUE);
+//                DrawModel(sphere, position, 1.0f, BLUE);
 //                DrawModelWires(plane, position, 1.0f, RED);
 //                DrawModelWires(cube, position, 1.001f, RED);
 //                DrawModelWires(sphere, position, 1.001f, RED);
