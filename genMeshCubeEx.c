@@ -6,15 +6,8 @@
 #include <raymath.h>
 
 static Mesh GenMeshPlaneEx(Vector3 normal, float width, float length, float depth, int resX, int resY);
-#if 0
-static Mesh GenMeshPlaneUp(float width, float length, float depth, int resX, int resY, int resZ);
-static Mesh GenMeshPlaneDown(float width, float length, float depth, int resX, int resY, int resZ);
-static Mesh GenMeshPlaneLeft(float width, float length, float depth, int resX, int resY, int resZ);
-static Mesh GenMeshPlaneRight(float width, float length, float depth, int resX, int resY, int resZ);
-static Mesh GenMeshPlaneFront(float width, float length, float depth, int resX, int resY, int resZ);
-static Mesh GenMeshPlaneBack(float width, float length, float depth, int resX, int resY, int resZ);
-#endif
 static Mesh GenMeshCubeEx(float width, float length, float depth, int resX, int resY, int resZ);
+static Mesh GenMeshSphereEx(float radius, int resolution);
 
 //------------------------------------------------------------------------------------
 // Program main entry point
@@ -29,13 +22,13 @@ int main(void)
     InitWindow(screenWidth, screenHeight, "raylib [models] example - mesh generation");
 
     // We generate a checked image for texturing
-    Image checked = GenImageChecked(2, 2, 1, 1, RED, GREEN);
+    Image checked = GenImageChecked(512, 512, 256, 256, BLUE, YELLOW);
     Texture2D texture = LoadTextureFromImage(checked);
     UnloadImage(checked);
 
     Model models = { 0 };
-
-    models = LoadModelFromMesh(GenMeshCubeEx(10, 10, 10, 10, 10, 10));
+//    models = LoadModelFromMesh(GenMeshCubeEx(5, 5, 5, 25, 25, 25));
+    models = LoadModelFromMesh(GenMeshSphereEx(5, 25));
 
     // Generated meshes could be exported as .obj files
     //ExportMesh(models.meshes[0], "plane.obj");
@@ -48,7 +41,7 @@ int main(void)
             position:   { 5.0f, 5.0f, 5.0f },
             target:     { 0.0f, 0.0f, 0.0f },
             up:         { 0.0f, 1.0f, 0.0f },
-            fovy:       45.0f,
+            fovy:       60.0f,
             projection: 0
     };
 
@@ -77,22 +70,22 @@ int main(void)
 
             BeginMode3D(camera); {
 
-                DrawModelWires(models, position, 1.0f, WHITE);
 //                DrawModel(models, position, 1.0f, WHITE);
+                DrawModelWires(models, position, 1.0f, WHITE);
 //                DrawGrid(10, 1.0);
 
                 Vector3 pos;
                 pos = (Vector3){0, 0, 0};
-                DrawCubeWires(pos, 2, 2, 2, WHITE);
+                DrawCubeWires(pos, 2.01, 2.01, 2, MAGENTA);
                 pos = (Vector3){2, 0, 0};
-                DrawCubeWires(pos, 0.1, 0.1, 0.1, RED);
-                DrawLine3D(Vector3Zero(), pos, RED);
+                DrawCubeWires(pos, 0.1, 0.1, 0.1, MAROON);
+                DrawLine3D(Vector3Zero(), pos, MAROON);
                 pos = (Vector3){0, 2, 0};
-                DrawCubeWires(pos, 0.1, 0.1, 0.1, GREEN);
-                DrawLine3D(Vector3Zero(), pos, GREEN);
+                DrawCubeWires(pos, 0.1, 0.1, 0.1, LIME);
+                DrawLine3D(Vector3Zero(), pos, LIME);
                 pos = (Vector3){0, 0, 2};
-                DrawCubeWires(pos, 0.1, 0.1, 0.1, BLUE);
-                DrawLine3D(Vector3Zero(), pos, BLUE);
+                DrawCubeWires(pos, 0.1, 0.1, 0.1, DARKBLUE);
+                DrawLine3D(Vector3Zero(), pos, DARKBLUE);
 
             } EndMode3D();
 
@@ -106,12 +99,7 @@ int main(void)
 
     // Unload models data (GPU VRAM)
 
-//    RL_FREE(models.meshes[0].vertices);
-//    RL_FREE(models.meshes[0].normals);
-//    RL_FREE(models.meshes[0].texcoords);
-//    RL_FREE(models.meshes[0].indices);
-//
-//    UnloadModel(models);
+    UnloadModel(models);
 
     CloseWindow();          // Close window and OpenGL context
     //--------------------------------------------------------------------------------------
@@ -135,6 +123,73 @@ Vector3 faceNormal[] = {
 };
 
 int numNormals = sizeof(faceNormal)/sizeof(faceNormal[0]);
+
+// Generate plane mesh (with subdivisions)
+static Mesh GenMeshSphereEx(float radius, int resolution)
+{
+    Mesh cube = GenMeshCubeEx(1, 1, 1, resolution, resolution, resolution);
+
+    Mesh mesh = {};
+
+    mesh.vertexCount = cube.vertexCount;
+    mesh.triangleCount = cube.triangleCount;
+
+    mesh.vertices = (float *)RL_MALLOC(mesh.vertexCount*3*sizeof(float));
+    mesh.texcoords = (float *)RL_MALLOC(mesh.vertexCount*2*sizeof(float));
+    mesh.normals = (float *)RL_MALLOC(mesh.vertexCount*3*sizeof(float));
+    mesh.indices = (unsigned short *)RL_MALLOC(mesh.triangleCount*3*sizeof(unsigned short));
+
+    // Mesh vertices position array
+    Vector3 v = {};
+    for (int i = 0; i < mesh.vertexCount; ++i) {
+        v.x = cube.vertices[3*i + 0];
+        v.y = cube.vertices[3*i + 1];
+        v.z = cube.vertices[3*i + 2];
+
+#if 0
+        v = Vector3Normalize(v);
+        v = Vector3Scale(v, radius);
+#else
+        float x2_ = v.x * v.x;
+        float y2_ = v.y * v.y;
+        float z2_ = v.z * v.z;
+        float x_ = v.x * sqrt(1.0f - (y2_ + z2_) / 2.0f + (y2_ * z2_) / 3.0f);
+        float y_ = v.y * sqrt(1.0f - (z2_ + x2_) / 2.0f + (z2_ * x2_) / 3.0f);
+        float z_ = v.z * sqrt(1.0f - (x2_ + y2_) / 2.0f + (x2_ * y2_) / 3.0f);
+        v = (Vector3){x_, y_, z_};
+        v = Vector3Normalize(v);
+        v = Vector3Scale(v, radius);
+#endif
+
+        mesh.vertices[3*i + 0] = v.x;
+        mesh.vertices[3*i + 1] = v.y;
+        mesh.vertices[3*i + 2] = v.z;
+    }
+    // Mesh texcoords array
+    for (int i = 0; i < mesh.vertexCount; i++) {
+        mesh.texcoords[2*i + 0] = cube.texcoords[2*i + 0];
+        mesh.texcoords[2*i + 1] = cube.texcoords[2*i + 1];
+    }
+
+    // Mesh normals array
+    for (int i = 0; i < mesh.vertexCount; i++) {
+        mesh.normals[3*i + 0] = cube.normals[3*i + 0];
+        mesh.normals[3*i + 1] = cube.normals[3*i + 1];
+        mesh.normals[3*i + 2] = cube.normals[3*i + 2];
+    }
+
+    // Mesh indices array initialization
+    for (int i = 0; i < mesh.triangleCount*3; i++) {
+        mesh.indices[i] = cube.indices[i];
+    }
+
+    // Upload vertex data to GPU (static mesh)
+    UploadMesh(&mesh, false);
+
+    UnloadMesh(cube);
+
+    return mesh;
+}
 
 // Generate plane mesh (with subdivisions)
 static Mesh GenMeshCubeEx(float width, float length, float depth, int resX, int resY, int resZ)
@@ -164,32 +219,26 @@ static Mesh GenMeshCubeEx(float width, float length, float depth, int resX, int 
     Mesh plane = {};
     for (int fi = 0; fi < numNormals; ++fi) {
         switch (fi) {
-        case 0:
-//            plane = GenMeshPlaneUp(width, length, depth, resX, resY, resZ);
-            plane = GenMeshPlaneEx(up, width, depth, length, resX, resZ);
-            break;
-        case 1:
-//            plane = GenMeshPlaneDown(width, length, depth, resX, resY, resZ);
-            plane = GenMeshPlaneEx(down, width, depth, length, resX, resZ);
-            break;
-        case 2:
-//            plane = GenMeshPlaneRight(width, length, depth, resX, resY, resZ);
-            plane = GenMeshPlaneEx(right, depth, length, width, resZ, resY);
-            break;
-        case 3:
-//            plane = GenMeshPlaneLeft(width, length, depth, resX, resY, resZ);
-            plane = GenMeshPlaneEx(left, depth, length, width, resZ, resY);
-            break;
-        case 4:
-//            plane = GenMeshPlaneFront(width, length, depth, resX, resY, resZ);
-            plane = GenMeshPlaneEx(front, length, width, depth, resY, resX);
-            break;
-        case 5:
-//            plane = GenMeshPlaneBack(width, length, depth, resX, resY, resZ);
-            plane = GenMeshPlaneEx(back, length, width, depth, resY, resX);
-            break;
-        default:
-            break;
+            case 0:
+                plane = GenMeshPlaneEx(up, width, depth, length, resX, resZ);
+                break;
+            case 1:
+                plane = GenMeshPlaneEx(down, width, depth, length, resX, resZ);
+                break;
+            case 2:
+                plane = GenMeshPlaneEx(right, depth, length, width, resZ, resY);
+                break;
+            case 3:
+                plane = GenMeshPlaneEx(left, depth, length, width, resZ, resY);
+                break;
+            case 4:
+                plane = GenMeshPlaneEx(front, length, width, depth, resY, resX);
+                break;
+            case 5:
+                plane = GenMeshPlaneEx(back, length, width, depth, resY, resX);
+                break;
+            default:
+                break;
         }
 
         memcpy(&mesh.vertices[cursorVertices*3], plane.vertices, plane.vertexCount*3*sizeof(float));
@@ -202,6 +251,8 @@ static Mesh GenMeshCubeEx(float width, float length, float depth, int resX, int 
         }
         totVerts += plane.vertexCount;
         cursorTriangles += plane.triangleCount;
+
+        UnloadMesh(plane);
     }
 
     // Upload vertex data to GPU (static mesh)
@@ -210,11 +261,9 @@ static Mesh GenMeshCubeEx(float width, float length, float depth, int resX, int 
     return mesh;
 }
 
-// Generate plane mesh (with subdivisions)
+// Generate plane mesh (with subdivisions) oriented by normal
 static Mesh GenMeshPlaneEx(Vector3 normal, float width, float length, float depth, int resX, int resY)
 {
-    Mesh mesh = { 0 };
-
     resX++;
     resY++;
 
@@ -229,13 +278,10 @@ static Mesh GenMeshPlaneEx(Vector3 normal, float width, float length, float dept
     normal = Vector3Scale(normal, depth);
 
     Vector3 *vertices = (Vector3 *)RL_MALLOC(vertexCount*sizeof(Vector3));
-    for (int y = 0; y < resY; y++)
-    {
-        // [-length/2, length/2]
-        for (int x = 0; x < resX; x++)
-        {
+    for (int y = 0; y < resY; y++) {
+        for (int x = 0; x < resX; x++) {
             int vertexIndex = x + y*resX;
-            Vector2 t = { x, y };
+            Vector2 t = { (float)x, (float)y };
             t.x /= (float)resX-1.0f;
             t.y /= (float)resY-1.0f;
             Vector3 pointA = Vector3Scale(axisA, (t.x - 0.5f)*width);
@@ -253,10 +299,8 @@ static Mesh GenMeshPlaneEx(Vector3 normal, float width, float length, float dept
 
     // TexCoords definition
     Vector2 *texcoords = (Vector2 *)RL_MALLOC(vertexCount*sizeof(Vector2));
-    for (int v = 0; v < resY; v++)
-    {
-        for (int u = 0; u < resX; u++)
-        {
+    for (int v = 0; v < resY; v++) {
+        for (int u = 0; u < resX; u++) {
             texcoords[u + v*resX] = (Vector2){ (float)u/(resX - 1), (float)v/(resY - 1) };
         }
     }
@@ -265,19 +309,20 @@ static Mesh GenMeshPlaneEx(Vector3 normal, float width, float length, float dept
     int numFaces = (resX - 1)*(resY - 1);
     int *triangles = (int *)RL_MALLOC(numFaces*6*sizeof(int));
     int t = 0;
-    for (int face = 0; face < numFaces; face++)
-    {
+    for (int face = 0; face < numFaces; face++) {
         // Retrieve lower left corner from face ind
         int i = face + face/(resX - 1);
 
-        triangles[t++] = i + resX;
-        triangles[t++] = i;
-        triangles[t++] = i + 1;
+        triangles[t++] = i; // 0
+        triangles[t++] = i + 1; // 1
+        triangles[t++] = i + resX + 1; // 3
 
-        triangles[t++] = i + resX;
-        triangles[t++] = i + 1;
-        triangles[t++] = i + resX + 1;
+        triangles[t++] = i; // 0
+        triangles[t++] = i + resX + 1; // 3
+        triangles[t++] = i + resX; // 2
     }
+
+    Mesh mesh = {};
 
     mesh.vertexCount = vertexCount;
     mesh.triangleCount = numFaces*2;
@@ -287,31 +332,29 @@ static Mesh GenMeshPlaneEx(Vector3 normal, float width, float length, float dept
     mesh.indices = (unsigned short *)RL_MALLOC(mesh.triangleCount*3*sizeof(unsigned short));
 
     // Mesh vertices position array
-    for (int i = 0; i < mesh.vertexCount; i++)
-    {
+    for (int i = 0; i < mesh.vertexCount; i++) {
         mesh.vertices[3*i + 0] = vertices[i].x;
         mesh.vertices[3*i + 1] = vertices[i].y;
         mesh.vertices[3*i + 2] = vertices[i].z;
     }
 
     // Mesh texcoords array
-    for (int i = 0; i < mesh.vertexCount; i++)
-    {
+    for (int i = 0; i < mesh.vertexCount; i++) {
         mesh.texcoords[2*i + 0] = texcoords[i].x;
         mesh.texcoords[2*i + 1] = texcoords[i].y;
     }
 
     // Mesh normals array
-    for (int i = 0; i < mesh.vertexCount; i++)
-    {
+    for (int i = 0; i < mesh.vertexCount; i++) {
         mesh.normals[3*i + 0] = normals[i].x;
         mesh.normals[3*i + 1] = normals[i].y;
         mesh.normals[3*i + 2] = normals[i].z;
     }
 
     // Mesh indices array initialization
-    for (int i = 0; i < mesh.triangleCount*3; i++)
+    for (int i = 0; i < mesh.triangleCount*3; i++) {
         mesh.indices[i] = triangles[i];
+    }
 
     RL_FREE(vertices);
     RL_FREE(normals);
@@ -323,635 +366,3 @@ static Mesh GenMeshPlaneEx(Vector3 normal, float width, float length, float dept
 
     return mesh;
 }
-
-#if 0
-// Generate plane mesh (with subdivisions)
-static Mesh GenMeshPlaneUp(float width, float length, float depth, int resX, int resY, int resZ)
-{
-    Mesh mesh = { 0 };
-
-    resX++;
-    resY++;
-    resZ++;
-
-    // Vertices definition
-    int vertexCount = resX*resZ; // vertices get reused for the faces
-
-    Vector3 *vertices = (Vector3 *)RL_MALLOC(vertexCount*sizeof(Vector3));
-    float yPos = 0.0f;
-    for (int z = 0; z < resZ; z++)
-    {
-        // [-length/2, length/2]
-        float zPos = ((float)z/(resZ - 1) - 0.5f)*depth;
-        for (int x = 0; x < resX; x++)
-        {
-            // [-width/2, width/2]
-            float xPos = ((float)x/(resX - 1) - 0.5f)*width;
-            vertices[x + z*resX] = (Vector3){ xPos, yPos, zPos };
-            vertices[x + z*resX] = Vector3Add(vertices[x + z*resX], Vector3Scale(up, length/2.0f));
-        }
-    }
-
-    // Normals definition
-    Vector3 *normals = (Vector3 *)RL_MALLOC(vertexCount*sizeof(Vector3));
-    for (int n = 0; n < vertexCount; n++)
-        normals[n] = up;
-
-    // TexCoords definition
-    Vector2 *texcoords = (Vector2 *)RL_MALLOC(vertexCount*sizeof(Vector2));
-    for (int v = 0; v < resZ; v++)
-    {
-        for (int u = 0; u < resX; u++)
-        {
-            texcoords[u + v*resX] = (Vector2){ (float)u/(resX - 1), (float)v/(resZ - 1) };
-        }
-    }
-
-    // Triangles definition (indices)
-    int numFaces = (resX - 1)*(resZ - 1);
-    int *triangles = (int *)RL_MALLOC(numFaces*6*sizeof(int));
-    int t = 0;
-    for (int face = 0; face < numFaces; face++)
-    {
-        // Retrieve lower left corner from face ind
-        int i = face + face/(resX - 1);
-
-        triangles[t++] = i + resX;
-        triangles[t++] = i + 1;
-        triangles[t++] = i;
-
-        triangles[t++] = i + resX;
-        triangles[t++] = i + resX + 1;
-        triangles[t++] = i + 1;
-    }
-
-    mesh.vertexCount = vertexCount;
-    mesh.triangleCount = numFaces*2;
-    mesh.vertices = (float *)RL_MALLOC(mesh.vertexCount*3*sizeof(float));
-    mesh.texcoords = (float *)RL_MALLOC(mesh.vertexCount*2*sizeof(float));
-    mesh.normals = (float *)RL_MALLOC(mesh.vertexCount*3*sizeof(float));
-    mesh.indices = (unsigned short *)RL_MALLOC(mesh.triangleCount*3*sizeof(unsigned short));
-
-    // Mesh vertices position array
-    for (int i = 0; i < mesh.vertexCount; i++)
-    {
-        mesh.vertices[3*i] = vertices[i].x;
-        mesh.vertices[3*i + 1] = vertices[i].y;
-        mesh.vertices[3*i + 2] = vertices[i].z;
-    }
-
-    // Mesh texcoords array
-    for (int i = 0; i < mesh.vertexCount; i++)
-    {
-        mesh.texcoords[2*i] = texcoords[i].x;
-        mesh.texcoords[2*i + 1] = texcoords[i].y;
-    }
-
-    // Mesh normals array
-    for (int i = 0; i < mesh.vertexCount; i++)
-    {
-        mesh.normals[3*i] = normals[i].x;
-        mesh.normals[3*i + 1] = normals[i].y;
-        mesh.normals[3*i + 2] = normals[i].z;
-    }
-
-    // Mesh indices array initialization
-    for (int i = 0; i < mesh.triangleCount*3; i++)
-        mesh.indices[i] = triangles[i];
-
-    RL_FREE(vertices);
-    RL_FREE(normals);
-    RL_FREE(texcoords);
-    RL_FREE(triangles);
-
-    // Upload vertex data to GPU (static mesh)
-    UploadMesh(&mesh, false);
-
-    return mesh;
-}
-
-// Generate plane mesh (with subdivisions)
-static Mesh GenMeshPlaneDown(float width, float length, float depth, int resX, int resY, int resZ)
-{
-    Mesh mesh = { 0 };
-
-    resX++;
-    resY++;
-    resZ++;
-
-    // Vertices definition
-    int vertexCount = resX*resZ; // vertices get reused for the faces
-
-    Vector3 *vertices = (Vector3 *)RL_MALLOC(vertexCount*sizeof(Vector3));
-    float yPos = 0.0f;
-    for (int z = 0; z < resZ; z++)
-    {
-        // [-length/2, length/2]
-        float zPos = ((float)z/(resZ - 1) - 0.5f)*depth;
-        for (int x = 0; x < resX; x++)
-        {
-            // [-width/2, width/2]
-            float xPos = ((float)x/(resX - 1) - 0.5f)*width;
-            vertices[x + z*resX] = (Vector3){ xPos, yPos, zPos };
-            vertices[x + z*resX] = Vector3Add(vertices[x + z*resX], Vector3Scale(down, length/2.0f));
-        }
-    }
-
-    // Normals definition
-    Vector3 *normals = (Vector3 *)RL_MALLOC(vertexCount*sizeof(Vector3));
-    for (int n = 0; n < vertexCount; n++)
-        normals[n] = down;
-
-    // TexCoords definition
-    Vector2 *texcoords = (Vector2 *)RL_MALLOC(vertexCount*sizeof(Vector2));
-    for (int v = 0; v < resZ; v++)
-    {
-        for (int u = 0; u < resX; u++)
-        {
-            texcoords[u + v*resX] = (Vector2){ (float)u/(resX - 1), (float)v/(resZ - 1) };
-        }
-    }
-
-    // Triangles definition (indices)
-    int numFaces = (resX - 1)*(resZ - 1);
-    int *triangles = (int *)RL_MALLOC(numFaces*6*sizeof(int));
-    int t = 0;
-    for (int face = 0; face < numFaces; face++)
-    {
-        // Retrieve lower left corner from face ind
-        int i = face + face/(resX - 1);
-
-        triangles[t++] = i + resX;
-        triangles[t++] = i;
-        triangles[t++] = i + 1;
-
-        triangles[t++] = i + resX;
-        triangles[t++] = i + 1;
-        triangles[t++] = i + resX + 1;
-    }
-
-    mesh.vertexCount = vertexCount;
-    mesh.triangleCount = numFaces*2;
-    mesh.vertices = (float *)RL_MALLOC(mesh.vertexCount*3*sizeof(float));
-    mesh.texcoords = (float *)RL_MALLOC(mesh.vertexCount*2*sizeof(float));
-    mesh.normals = (float *)RL_MALLOC(mesh.vertexCount*3*sizeof(float));
-    mesh.indices = (unsigned short *)RL_MALLOC(mesh.triangleCount*3*sizeof(unsigned short));
-
-    // Mesh vertices position array
-    for (int i = 0; i < mesh.vertexCount; i++)
-    {
-        mesh.vertices[3*i] = vertices[i].x;
-        mesh.vertices[3*i + 1] = vertices[i].y;
-        mesh.vertices[3*i + 2] = vertices[i].z;
-    }
-
-    // Mesh texcoords array
-    for (int i = 0; i < mesh.vertexCount; i++)
-    {
-        mesh.texcoords[2*i] = texcoords[i].x;
-        mesh.texcoords[2*i + 1] = texcoords[i].y;
-    }
-
-    // Mesh normals array
-    for (int i = 0; i < mesh.vertexCount; i++)
-    {
-        mesh.normals[3*i] = normals[i].x;
-        mesh.normals[3*i + 1] = normals[i].y;
-        mesh.normals[3*i + 2] = normals[i].z;
-    }
-
-    // Mesh indices array initialization
-    for (int i = 0; i < mesh.triangleCount*3; i++)
-        mesh.indices[i] = triangles[i];
-
-    RL_FREE(vertices);
-    RL_FREE(normals);
-    RL_FREE(texcoords);
-    RL_FREE(triangles);
-
-    // Upload vertex data to GPU (static mesh)
-    UploadMesh(&mesh, false);
-
-    return mesh;
-}
-
-// Generate plane mesh (with subdivisions)
-static Mesh GenMeshPlaneLeft(float width, float length, float depth, int resX, int resY, int resZ)
-{
-    Mesh mesh = { 0 };
-
-    resX++;
-    resY++;
-    resZ++;
-
-    // Vertices definition
-    int vertexCount = resY*resZ; // vertices get reused for the faces
-
-    Vector3 *vertices = (Vector3 *)RL_MALLOC(vertexCount*sizeof(Vector3));
-    float xPos = 0;
-    for (int z = 0; z < resZ; z++)
-    {
-        // [-length/2, length/2]
-        float zPos = ((float)z/(resZ - 1) - 0.5f)*depth;
-        for (int y = 0; y < resY; y++)
-        {
-            // [-width/2, width/2]
-            float yPos = ((float)y/(resY - 1) - 0.5f)*length;
-            vertices[y + z*resY] = (Vector3){ xPos, yPos, zPos };
-            vertices[y + z*resY] = Vector3Add(vertices[y + z*resY], Vector3Scale(left, width/2.0f));
-        }
-    }
-
-    // Normals definition
-    Vector3 *normals = (Vector3 *)RL_MALLOC(vertexCount*sizeof(Vector3));
-    for (int n = 0; n < vertexCount; n++)
-        normals[n] = left;
-
-    // TexCoords definition
-    Vector2 *texcoords = (Vector2 *)RL_MALLOC(vertexCount*sizeof(Vector2));
-    for (int v = 0; v < resZ; v++)
-    {
-        for (int u = 0; u < resY; u++)
-        {
-            texcoords[u + v*resY] = (Vector2){ (float)u/(resY - 1), (float)v/(resZ - 1) };
-        }
-    }
-
-    // Triangles definition (indices)
-    int numFaces = (resY - 1)*(resZ - 1);
-    int *triangles = (int *)RL_MALLOC(numFaces*6*sizeof(int));
-    int t = 0;
-    for (int face = 0; face < numFaces; face++)
-    {
-        // Retrieve lower left corner from face ind
-        int i = face + face/(resY - 1);
-
-        triangles[t++] = i + resY;
-        triangles[t++] = i + 1;
-        triangles[t++] = i;
-
-        triangles[t++] = i + resY;
-        triangles[t++] = i + resY + 1;
-        triangles[t++] = i + 1;
-    }
-
-    mesh.vertexCount = vertexCount;
-    mesh.triangleCount = numFaces*2;
-    mesh.vertices = (float *)RL_MALLOC(mesh.vertexCount*3*sizeof(float));
-    mesh.texcoords = (float *)RL_MALLOC(mesh.vertexCount*2*sizeof(float));
-    mesh.normals = (float *)RL_MALLOC(mesh.vertexCount*3*sizeof(float));
-    mesh.indices = (unsigned short *)RL_MALLOC(mesh.triangleCount*3*sizeof(unsigned short));
-
-    // Mesh vertices position array
-    for (int i = 0; i < mesh.vertexCount; i++)
-    {
-        mesh.vertices[3*i] = vertices[i].x;
-        mesh.vertices[3*i + 1] = vertices[i].y;
-        mesh.vertices[3*i + 2] = vertices[i].z;
-    }
-
-    // Mesh texcoords array
-    for (int i = 0; i < mesh.vertexCount; i++)
-    {
-        mesh.texcoords[2*i] = texcoords[i].x;
-        mesh.texcoords[2*i + 1] = texcoords[i].y;
-    }
-
-    // Mesh normals array
-    for (int i = 0; i < mesh.vertexCount; i++)
-    {
-        mesh.normals[3*i] = normals[i].x;
-        mesh.normals[3*i + 1] = normals[i].y;
-        mesh.normals[3*i + 2] = normals[i].z;
-    }
-
-    // Mesh indices array initialization
-    for (int i = 0; i < mesh.triangleCount*3; i++)
-        mesh.indices[i] = triangles[i];
-
-    RL_FREE(vertices);
-    RL_FREE(normals);
-    RL_FREE(texcoords);
-    RL_FREE(triangles);
-
-    // Upload vertex data to GPU (static mesh)
-    UploadMesh(&mesh, false);
-
-    return mesh;
-}
-
-// Generate plane mesh (with subdivisions)
-static Mesh GenMeshPlaneRight(float width, float length, float depth, int resX, int resY, int resZ)
-{
-    Mesh mesh = { 0 };
-
-    resX++;
-    resY++;
-    resZ++;
-
-    // Vertices definition
-    int vertexCount = resY*resZ; // vertices get reused for the faces
-
-    Vector3 *vertices = (Vector3 *)RL_MALLOC(vertexCount*sizeof(Vector3));
-    float xPos = 0;
-    for (int z = 0; z < resZ; z++)
-    {
-        // [-length/2, length/2]
-        float zPos = ((float)z/(resZ - 1) - 0.5f)*depth;
-        for (int x = 0; x < resY; x++)
-        {
-            // [-width/2, width/2]
-            float yPos = ((float)x/(resY - 1) - 0.5f)*length;
-            vertices[x + z*resY] = (Vector3){ xPos, yPos, zPos };
-            vertices[x + z*resY] = Vector3Add(vertices[x + z*resY], Vector3Scale(right, width/2.0f));
-        }
-    }
-
-    // Normals definition
-    Vector3 *normals = (Vector3 *)RL_MALLOC(vertexCount*sizeof(Vector3));
-    for (int n = 0; n < vertexCount; n++)
-        normals[n] = right;
-
-    // TexCoords definition
-    Vector2 *texcoords = (Vector2 *)RL_MALLOC(vertexCount*sizeof(Vector2));
-    for (int v = 0; v < resZ; v++)
-    {
-        for (int u = 0; u < resY; u++)
-        {
-            texcoords[u + v*resY] = (Vector2){ (float)u/(resY - 1), (float)v/(resZ - 1) };
-        }
-    }
-
-    // Triangles definition (indices)
-    int numFaces = (resY - 1)*(resZ - 1);
-    int *triangles = (int *)RL_MALLOC(numFaces*6*sizeof(int));
-    int t = 0;
-    for (int face = 0; face < numFaces; face++)
-    {
-        // Retrieve lower left corner from face ind
-        int i = face + face/(resY - 1);
-
-        triangles[t++] = i + resY;
-        triangles[t++] = i;
-        triangles[t++] = i + 1;
-
-        triangles[t++] = i + resY;
-        triangles[t++] = i + 1;
-        triangles[t++] = i + resY + 1;
-    }
-
-    mesh.vertexCount = vertexCount;
-    mesh.triangleCount = numFaces*2;
-    mesh.vertices = (float *)RL_MALLOC(mesh.vertexCount*3*sizeof(float));
-    mesh.texcoords = (float *)RL_MALLOC(mesh.vertexCount*2*sizeof(float));
-    mesh.normals = (float *)RL_MALLOC(mesh.vertexCount*3*sizeof(float));
-    mesh.indices = (unsigned short *)RL_MALLOC(mesh.triangleCount*3*sizeof(unsigned short));
-
-    // Mesh vertices position array
-    for (int i = 0; i < mesh.vertexCount; i++)
-    {
-        mesh.vertices[3*i] = vertices[i].x;
-        mesh.vertices[3*i + 1] = vertices[i].y;
-        mesh.vertices[3*i + 2] = vertices[i].z;
-    }
-
-    // Mesh texcoords array
-    for (int i = 0; i < mesh.vertexCount; i++)
-    {
-        mesh.texcoords[2*i] = texcoords[i].x;
-        mesh.texcoords[2*i + 1] = texcoords[i].y;
-    }
-
-    // Mesh normals array
-    for (int i = 0; i < mesh.vertexCount; i++)
-    {
-        mesh.normals[3*i] = normals[i].x;
-        mesh.normals[3*i + 1] = normals[i].y;
-        mesh.normals[3*i + 2] = normals[i].z;
-    }
-
-    // Mesh indices array initialization
-    for (int i = 0; i < mesh.triangleCount*3; i++)
-        mesh.indices[i] = triangles[i];
-
-    RL_FREE(vertices);
-    RL_FREE(normals);
-    RL_FREE(texcoords);
-    RL_FREE(triangles);
-
-    // Upload vertex data to GPU (static mesh)
-    UploadMesh(&mesh, false);
-
-    return mesh;
-}
-
-// Generate plane mesh (with subdivisions)
-static Mesh GenMeshPlaneFront(float width, float length, float depth, int resX, int resY, int resZ)
-{
-    Mesh mesh = { 0 };
-
-    resX++;
-    resY++;
-    resZ++;
-
-    // Vertices definition
-    int vertexCount = resX*resY; // vertices get reused for the faces
-
-    Vector3 *vertices = (Vector3 *)RL_MALLOC(vertexCount*sizeof(Vector3));
-    float zPos = 0.0f;
-    for (int y = 0; y < resY; y++)
-    {
-        // [-length/2, length/2]
-        float yPos = ((float)y/(resY - 1) - 0.5f)*length;
-        for (int x = 0; x < resX; x++)
-        {
-            // [-width/2, width/2]
-            float xPos = ((float)x/(resX - 1) - 0.5f)*width;
-            vertices[x + y*resX] = (Vector3){ xPos, yPos, zPos };
-            vertices[x + y*resX] = Vector3Add(vertices[x + y*resX], Vector3Scale(front, depth/2.0f));
-        }
-    }
-
-    // Normals definition
-    Vector3 *normals = (Vector3 *)RL_MALLOC(vertexCount*sizeof(Vector3));
-    for (int n = 0; n < vertexCount; n++)
-        normals[n] = front;
-
-    // TexCoords definition
-    Vector2 *texcoords = (Vector2 *)RL_MALLOC(vertexCount*sizeof(Vector2));
-    for (int v = 0; v < resY; v++)
-    {
-        for (int u = 0; u < resX; u++)
-        {
-            texcoords[u + v*resX] = (Vector2){ (float)u/(resX - 1), (float)v/(resY - 1) };
-        }
-    }
-
-    // Triangles definition (indices)
-    int numFaces = (resX - 1)*(resY - 1);
-    int *triangles = (int *)RL_MALLOC(numFaces*6*sizeof(int));
-    int t = 0;
-    for (int face = 0; face < numFaces; face++)
-    {
-        // Retrieve lower left corner from face ind
-        int i = face + face/(resX - 1);
-
-        triangles[t++] = i + resX;
-        triangles[t++] = i;
-        triangles[t++] = i + 1;
-
-        triangles[t++] = i + resX;
-        triangles[t++] = i + 1;
-        triangles[t++] = i + resX + 1;
-    }
-
-    mesh.vertexCount = vertexCount;
-    mesh.triangleCount = numFaces*2;
-    mesh.vertices = (float *)RL_MALLOC(mesh.vertexCount*3*sizeof(float));
-    mesh.texcoords = (float *)RL_MALLOC(mesh.vertexCount*2*sizeof(float));
-    mesh.normals = (float *)RL_MALLOC(mesh.vertexCount*3*sizeof(float));
-    mesh.indices = (unsigned short *)RL_MALLOC(mesh.triangleCount*3*sizeof(unsigned short));
-
-    // Mesh vertices position array
-    for (int i = 0; i < mesh.vertexCount; i++)
-    {
-        mesh.vertices[3*i] = vertices[i].x;
-        mesh.vertices[3*i + 1] = vertices[i].y;
-        mesh.vertices[3*i + 2] = vertices[i].z;
-    }
-
-    // Mesh texcoords array
-    for (int i = 0; i < mesh.vertexCount; i++)
-    {
-        mesh.texcoords[2*i] = texcoords[i].x;
-        mesh.texcoords[2*i + 1] = texcoords[i].y;
-    }
-
-    // Mesh normals array
-    for (int i = 0; i < mesh.vertexCount; i++)
-    {
-        mesh.normals[3*i] = normals[i].x;
-        mesh.normals[3*i + 1] = normals[i].y;
-        mesh.normals[3*i + 2] = normals[i].z;
-    }
-
-    // Mesh indices array initialization
-    for (int i = 0; i < mesh.triangleCount*3; i++)
-        mesh.indices[i] = triangles[i];
-
-    RL_FREE(vertices);
-    RL_FREE(normals);
-    RL_FREE(texcoords);
-    RL_FREE(triangles);
-
-    // Upload vertex data to GPU (static mesh)
-    UploadMesh(&mesh, false);
-
-    return mesh;
-}
-
-// Generate plane mesh (with subdivisions)
-static Mesh GenMeshPlaneBack(float width, float length, float depth, int resX, int resY, int resZ)
-{
-    Mesh mesh = { 0 };
-
-    resX++;
-    resY++;
-    resZ++;
-
-    // Vertices definition
-    int vertexCount = resX*resY; // vertices get reused for the faces
-
-    Vector3 *vertices = (Vector3 *)RL_MALLOC(vertexCount*sizeof(Vector3));
-    float zPos = 0.0f;
-    for (int y = 0; y < resY; y++)
-    {
-        // [-length/2, length/2]
-        float yPos = ((float)y/(resY - 1) - 0.5f)*length;
-        for (int x = 0; x < resX; x++)
-        {
-            // [-width/2, width/2]
-            float xPos = ((float)x/(resX - 1) - 0.5f)*width;
-            vertices[x + y*resX] = (Vector3){ xPos, yPos, zPos };
-            vertices[x + y*resX] = Vector3Add(vertices[x + y*resX], Vector3Scale(back, depth/2.0f));
-        }
-    }
-
-    // Normals definition
-    Vector3 *normals = (Vector3 *)RL_MALLOC(vertexCount*sizeof(Vector3));
-    for (int n = 0; n < vertexCount; n++)
-        normals[n] = back;
-
-    // TexCoords definition
-    Vector2 *texcoords = (Vector2 *)RL_MALLOC(vertexCount*sizeof(Vector2));
-    for (int v = 0; v < resY; v++)
-    {
-        for (int u = 0; u < resX; u++)
-        {
-            texcoords[u + v*resX] = (Vector2){ (float)u/(resX - 1), (float)v/(resY - 1) };
-        }
-    }
-
-    // Triangles definition (indices)
-    int numFaces = (resX - 1)*(resY - 1);
-    int *triangles = (int *)RL_MALLOC(numFaces*6*sizeof(int));
-    int t = 0;
-    for (int face = 0; face < numFaces; face++)
-    {
-        // Retrieve lower left corner from face ind
-        int i = face + face/(resX - 1);
-
-        triangles[t++] = i + resX;
-        triangles[t++] = i + 1;
-        triangles[t++] = i;
-
-        triangles[t++] = i + resX;
-        triangles[t++] = i + resX + 1;
-        triangles[t++] = i + 1;
-    }
-
-    mesh.vertexCount = vertexCount;
-    mesh.triangleCount = numFaces*2;
-    mesh.vertices = (float *)RL_MALLOC(mesh.vertexCount*3*sizeof(float));
-    mesh.texcoords = (float *)RL_MALLOC(mesh.vertexCount*2*sizeof(float));
-    mesh.normals = (float *)RL_MALLOC(mesh.vertexCount*3*sizeof(float));
-    mesh.indices = (unsigned short *)RL_MALLOC(mesh.triangleCount*3*sizeof(unsigned short));
-
-    // Mesh vertices position array
-    for (int i = 0; i < mesh.vertexCount; i++)
-    {
-        mesh.vertices[3*i] = vertices[i].x;
-        mesh.vertices[3*i + 1] = vertices[i].y;
-        mesh.vertices[3*i + 2] = vertices[i].z;
-    }
-
-    // Mesh texcoords array
-    for (int i = 0; i < mesh.vertexCount; i++)
-    {
-        mesh.texcoords[2*i] = texcoords[i].x;
-        mesh.texcoords[2*i + 1] = texcoords[i].y;
-    }
-
-    // Mesh normals array
-    for (int i = 0; i < mesh.vertexCount; i++)
-    {
-        mesh.normals[3*i] = normals[i].x;
-        mesh.normals[3*i + 1] = normals[i].y;
-        mesh.normals[3*i + 2] = normals[i].z;
-    }
-
-    // Mesh indices array initialization
-    for (int i = 0; i < mesh.triangleCount*3; i++)
-        mesh.indices[i] = triangles[i];
-
-    RL_FREE(vertices);
-    RL_FREE(normals);
-    RL_FREE(texcoords);
-    RL_FREE(triangles);
-
-    // Upload vertex data to GPU (static mesh)
-    UploadMesh(&mesh, false);
-
-    return mesh;
-}
-#endif
