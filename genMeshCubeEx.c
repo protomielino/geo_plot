@@ -148,16 +148,16 @@ int main(void)
     InitWindow(screenWidth, screenHeight, "raylib [models] example - mesh generation");
 
     // We generate a checked image for texturing
-//    Image image = GenImageChecked(512, 512, 256, 256, BLUE, YELLOW);
-    Image image = LoadImage("Colour_8192x4096.jpg");
+    Image image = GenImageChecked(2, 2, 1, 1, BLUE, YELLOW);
+//    Image image = LoadImage("Colour_8192x4096.jpg");
     Texture2D texture = LoadTextureFromImage(image);
 
     Model plane = { 0 };
     Model cube = { 0 };
     Model sphere = { 0 };
-    plane = LoadModelFromMesh(GenMeshPlaneEx(up, 10, 10, 0.001f, 25, 25));
-    cube = LoadModelFromMesh(GenMeshCubeEx(5, 5, 5, 25, 25, 25));
-    sphere = LoadModelFromMesh(GenMeshSphereEx(3.5, 100));
+    plane = LoadModelFromMesh(GenMeshPlaneEx((Vector3){1, 0, 1}, 10, 10, 0.001f, 10, 10));
+    cube = LoadModelFromMesh(GenMeshCubeEx(2, 3, 5, 2, 3, 5));
+    sphere = LoadModelFromMesh(GenMeshSphereEx(5, 25));
 
     // Generated meshes could be exported as .obj files
     //ExportMesh(models.meshes[0], "plane.obj");
@@ -169,7 +169,7 @@ int main(void)
 
     // Define the camera to look into our 3d world
     Camera camera = {
-            position:   { 10.0f, 10.0f, 10.0f },
+            position:   { 0.0f, 10.0f, 20.0f },
             target:     { 0.0f, 0.0f, 0.0f },
             up:         { 0.0f, 1.0f, 0.0f },
             fovy:       45.0f,
@@ -181,7 +181,7 @@ int main(void)
 
     DisableCursor();
 
-    SetTargetFPS(60);               // Set our game to run at 60 frames-per-second
+    SetTargetFPS(30);               // Set our game to run at 60 frames-per-second
     //--------------------------------------------------------------------------------------
 
     // Main game loop
@@ -201,45 +201,20 @@ int main(void)
 
             BeginMode3D(camera); {
 
-//                DrawModel(plane, position, 1.0f, WHITE);
-//                DrawModel(cube, position, 1.0f, WHITE);
-//                DrawModel(sphere, position, 1.0f, BLUE);
-//                DrawModelWires(plane, position, 1.0f, RED);
-//                DrawModelWires(cube, position, 1.001f, RED);
-//                DrawModelWires(sphere, position, 1.001f, RED);
+                position = (Vector3){ -10, 0, 0 };
+
+                DrawModel(plane, position, 1.0f, WHITE);
+                DrawModelWires(plane, position, 1.0f, RED);
+                position = Vector3Add(position, (Vector3){ 10, 0, 0 });
+
+                DrawModel(cube, position, 1.0f, WHITE);
+                DrawModelWires(cube, position, 1.001f, RED);
+                position = Vector3Add(position, (Vector3){ 10, 0, 0 });
+
+                DrawModel(sphere, position, 1.0f, WHITE);
+                DrawModelWires(sphere, position, 1.001f, RED);
+
                 DrawGrid(10, 1.0);
-
-                // Disegna la sfera con la proiezione dell'immagine
-                for (int i = 0; i < sphere.meshes[0].vertexCount; ++i) {
-                    Vector3 v = {
-                            sphere.meshes[0].vertices[i*3+0],
-                            sphere.meshes[0].vertices[i*3+1],
-                            sphere.meshes[0].vertices[i*3+2]
-                    };
-
-                    v = Vector3Normalize(v);
-
-                    Coordinate coor = pointToCoordinate(v);
-
-                    float lat = map(coor.latitude, +M_PI, -M_PI, 0.0f, 1.0f);
-                    float lon = map(coor.longitude, +M_PI_2, -M_PI_2, 0.0f, 1.0f);
-
-                    float x_ = lat * (image.width-1);
-                    float y_ = lon * (image.height-1);
-
-                    Color col = GetImageColor(image, x_, y_);
-
-                    lat = coor.latitude;
-                    lon = coor.longitude;
-
-                    Vector3 point = coordinateToPoint((Coordinate){lat, lon});
-
-                    #define SPHERE_RADIUS 2.0f
-
-                    point = Vector3Scale(point, SPHERE_RADIUS);
-
-                    DrawCube(point, 0.025f, 0.025f, 0.025f, col);
-                }
 
                 Vector3 pos;
                 pos = (Vector3){0, 0, 0};
@@ -500,8 +475,34 @@ static Mesh GenMeshSphereEx(float radius, int resolution)
 
     // Mesh texcoords array
     memcpy(mesh.texcoords, cube.texcoords, mesh.vertexCount*2*sizeof(float));
+    for (int i = 0; i < mesh.vertexCount-1; ++i) {
+        int vxi = i*3+0;
+        int vyi = i*3+1;
+        int vzi = i*3+2;
+
+        int tui = i * 2 + 0;
+        int tvi = i * 2 + 1;
+
+        Vector3 v = {
+                mesh.vertices[vxi],
+                mesh.vertices[vyi],
+                mesh.vertices[vzi]
+        };
+
+        v = Vector3Normalize(v);
+
+        Coordinate coor = pointToCoordinate(v);
+
+        float lat = map(coor.latitude,  M_PI, -M_PI, 0.0f, 1.0f);
+        float lon = map(coor.longitude, M_PI_2, -M_PI_2, 0.0f, 1.0f);
+
+        mesh.texcoords[tui] = lat;
+        mesh.texcoords[tvi] = lon;
+    }
+
     // Mesh normals array
     memcpy(mesh.normals, cube.normals, mesh.vertexCount*3*sizeof(float));
+
     // Mesh indices array initialization
     memcpy(mesh.indices, cube.indices, mesh.triangleCount*3*sizeof(unsigned short));
 
