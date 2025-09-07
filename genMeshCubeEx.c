@@ -164,7 +164,7 @@ int main(int argc, char *argv[])
     // We generate a checked image for texturing
     Image image = {};
 //    image = GenImageChecked(10, 10, 1, 1, BLACK, BLACK);
-    image = LoadImage("Colour_8192x4096.jpg");
+    image = LoadImage("colour_8192x4096.jpg");
     Texture2D texture = LoadTextureFromImage(image);
 
     Model plane = { 0 };
@@ -184,10 +184,10 @@ int main(int argc, char *argv[])
 
     // Define the camera to look into our 3d world
     Camera camera = {
-            position:   { 0.0f, 20.0f, -30.0f },
+            position:   { 30.0f, 25.0f, 5.0f },
             target:     { 0.0f, 0.0f, 0.0f },
             up:         { 0.0f, 1.0f, 0.0f },
-            fovy:       45.0f,
+            fovy:       30.0f,
             projection: 0
     };
 
@@ -195,14 +195,15 @@ int main(int argc, char *argv[])
     Vector3 position = { 0.0f, 0.0f, 0.0f };
 
     // GeoJSON stuff
+    char *fileName = NULL;
     if (argc < 2) {
-//        fprintf(stdout, "usage : ./parser <GEOJSON file>\n");
-//        return 1;
+        fileName = "gz_2010_us_040_00_20m.geojson";
+    } else {
+        fileName = argv[1];
     }
 
-    char *fileName = "countries.geojson";
     geojson_t geojson = {};
-    if (geojson_convert(&geojson, /*argv[1]*/fileName) < 0) {
+    if (geojson_convert(&geojson, fileName) < 0) {
         return 1;
     }
 
@@ -297,11 +298,7 @@ int main(int argc, char *argv[])
                                   linePenFirst = false;
                               }
 
-                              if (currentCountry == idx_fet) {
-                                  DrawCube(point, 0.01, 0.01, 0.01, countryColor);
-                              } else {
-                                  DrawLine3D(linePen, point, countryColor);
-                              }
+                              DrawPoint3D(point, countryColor);
 
                               linePen = point;
 //                              printf("      %f, %f\n", lat[idx_crd], lon[idx_crd]);

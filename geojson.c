@@ -9,9 +9,9 @@
 #include "geojson.h"
 
 
-const int SHIFT_WIDTH = 4;
+const int SHIFT_WIDTH = 2;
 bool DATA_NEWLINE = false;
-bool OBJECT_NEWLINE = false;
+bool OBJECT_NEWLINE = true;
 
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -49,6 +49,7 @@ int geojson_convert(geojson_t *this, const char* file_name)
     }
 
     geojson_parse_root(this, value);
+    geojson_dump_value(this, value, 0);
 
     JsonAllocator_deallocate(&allocator);
 
@@ -137,11 +138,12 @@ int geojson_parse_feature(geojson_t *this, JsonValue value)
             assert(JsonValue_getTag(&obj->value) == JSON_OBJECT);
             //parse properties
             for (JsonNode *prp = JsonValue_toNode(&obj->value); prp != NULL; prp = prp->next) {
+                //geojson_dump_value(this, value, 0);
                 //get name
                 if (strcmp(prp->key, "NAME") == 0 || strcmp(prp->key, "name") == 0 || strcmp(prp->key, "ADMIN") == 0) {
                     assert(JsonValue_getTag(&prp->value) == JSON_STRING);
                     feature.m_name = strdup(JsonValue_toString(&prp->value));
-                    fprintf(stdout, "NAME: %s\n", feature.m_name);
+//                    fprintf(stdout, "NAME: %s\n", feature.m_name);
                 }
             }
         }
@@ -150,6 +152,7 @@ int geojson_parse_feature(geojson_t *this, JsonValue value)
             geojson_parse_geometry(this, obj->value, &feature);
         }
     }
+
     arrput(this->m_feature, feature);
     return 0;
 }
@@ -253,6 +256,7 @@ int geojson_parse_coordinates(geojson_t *this, JsonValue value, /*std::string*/c
                 polygon_t polygon = {};
                 for (JsonNode *m = JsonValue_toNode(&arr_crd); m != NULL; m = m->next) {
                     JsonValue crd = m->value;
+                    //geojson_dump_value(this, crd, 10);
                     assert(JsonValue_getTag(&crd) == JSON_ARRAY);
                     JsonNode *n = JsonValue_toNode(&crd);
                     double lon = JsonValue_toNumber(&n->value);
@@ -269,108 +273,109 @@ int geojson_parse_coordinates(geojson_t *this, JsonValue value, /*std::string*/c
     return 0;
 }
 
-///////////////////////////////////////////////////////////////////////////////////////////////////////
-////geojson_dump_value
-///////////////////////////////////////////////////////////////////////////////////////////////////////
-//
-//int geojson_dump_value(JsonValue o, int indent)
-//{
-//  switch (o.getTag())
-//  {
-//  case JSON_NUMBER:
-//    fprintf(stdout, "%f", o.toNumber());
-//    break;
-//  case JSON_STRING:
-//    dump_string(o.toString());
-//    break;
-//  case JSON_ARRAY:
-//    if (!o.toNode())
-//    {
-//      fprintf(stdout, "[]");
-//      break;
-//    }
-//    fprintf(stdout, "[");
-//    if (DATA_NEWLINE) fprintf(stdout, "\n");
-//    for (auto i : o)
-//    {
-//      if (DATA_NEWLINE) fprintf(stdout, "%*s", indent + SHIFT_WIDTH, "");
-//      dump_value(i->value, indent + SHIFT_WIDTH);
-//      if (DATA_NEWLINE)
-//        fprintf(stdout, i->next ? ",\n" : "\n");
-//      else
-//        fprintf(stdout, i->next ? "," : "");
-//    }
-//    if (DATA_NEWLINE)
-//      fprintf(stdout, "%*s]", indent, "");
-//    else
-//      fprintf(stdout, "]");
-//    break;
-//  case JSON_OBJECT:
-//    if (!o.toNode())
-//    {
-//      fprintf(stdout, "{}");
-//      break;
-//    }
-//    fprintf(stdout, "{\n");
-//    for (auto i : o)
-//    {
-//      fprintf(stdout, "%*s", indent + SHIFT_WIDTH, "");
-//      dump_string(i->key);
-//      fprintf(stdout, ": ");
-//      dump_value(i->value, indent + SHIFT_WIDTH);
-//      fprintf(stdout, i->next ? ",\n" : "\n");
-//    }
-//    fprintf(stdout, "%*s}", indent, "");
-//    break;
-//  case JSON_TRUE:
-//    fprintf(stdout, "true");
-//    break;
-//  case JSON_FALSE:
-//    fprintf(stdout, "false");
-//    break;
-//  case JSON_NULL:
-//    fprintf(stdout, "null");
-//    break;
-//  }
-//  return 0;
-//}
-//
-///////////////////////////////////////////////////////////////////////////////////////////////////////
-////geojson_dump_string
-///////////////////////////////////////////////////////////////////////////////////////////////////////
-//
-//void geojson_dump_string(const char *s)
-//{
-//  fputc('"', stdout);
-//  while (*s)
-//  {
-//    int c = *s++;
-//    switch (c)
-//    {
-//    case '\b':
-//      fprintf(stdout, "\\b");
-//      break;
-//    case '\f':
-//      fprintf(stdout, "\\f");
-//      break;
-//    case '\n':
-//      fprintf(stdout, "\\n");
-//      break;
-//    case '\r':
-//      fprintf(stdout, "\\r");
-//      break;
-//    case '\t':
-//      fprintf(stdout, "\\t");
-//      break;
-//    case '\\':
-//      fprintf(stdout, "\\\\");
-//      break;
-//    case '"':
-//      fprintf(stdout, "\\\"");
-//      break;
-//    default:
-//      fputc(c, stdout);
-//    }
-//  }
-//  fprintf(stdout, "%s\"", s);
-//}
+/////////////////////////////////////////////////////////////////////////////////////////////////////
+//geojson_dump_value
+/////////////////////////////////////////////////////////////////////////////////////////////////////
+
+int geojson_dump_value(geojson_t *this, JsonValue o, int indent)
+{
+    switch (JsonValue_getTag(&o))
+    {
+    case JSON_NUMBER:
+        fprintf(stdout, "%f", JsonValue_toNumber(&o));
+        break;
+    case JSON_STRING:
+        geojson_dump_string(this, JsonValue_toString(&o));
+        break;
+    case JSON_ARRAY:
+        if (!JsonValue_toNode(&o))
+        {
+            fprintf(stdout, "[]");
+            break;
+        }
+        fprintf(stdout, "[");
+        if (DATA_NEWLINE)
+            fprintf(stdout, "\n");
+
+        for (JsonNode *i = JsonValue_toNode(&o); i != NULL; i = i->next) {
+            if (DATA_NEWLINE)
+                fprintf(stdout, "%*s", indent + SHIFT_WIDTH, "");
+            geojson_dump_value(this, i->value, indent + SHIFT_WIDTH);
+            if (DATA_NEWLINE)
+                fprintf(stdout, i->next ? ",\n" : "\n");
+            else
+                fprintf(stdout, i->next ? "," : "");
+        }
+        if (DATA_NEWLINE)
+            fprintf(stdout, "%*s]", indent, "");
+        else
+            fprintf(stdout, "]");
+        break;
+    case JSON_OBJECT:
+        if (!JsonValue_toNode(&o))
+        {
+            fprintf(stdout, "{}");
+            break;
+        }
+        fprintf(stdout, "{\n");
+        for (JsonNode *i = JsonValue_toNode(&o); i != NULL; i = i->next) {
+            fprintf(stdout, "%*s", indent + SHIFT_WIDTH, "");
+            geojson_dump_string(this, i->key);
+            fprintf(stdout, ": ");
+            geojson_dump_value(this, i->value, indent + SHIFT_WIDTH);
+            fprintf(stdout, i->next ? ",\n" : "\n");
+        }
+        fprintf(stdout, "%*s}", indent, "");
+        break;
+    case JSON_TRUE:
+        fprintf(stdout, "true");
+        break;
+    case JSON_FALSE:
+        fprintf(stdout, "false");
+        break;
+    case JSON_NULL:
+        fprintf(stdout, "null");
+        break;
+    }
+  return 0;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////
+//geojson_dump_string
+/////////////////////////////////////////////////////////////////////////////////////////////////////
+
+void geojson_dump_string(geojson_t *this, const char *s)
+{
+    fputc('"', stdout);
+    while (*s)
+    {
+        int c = *s++;
+        switch (c)
+        {
+        case '\b':
+            fprintf(stdout, "\\b");
+            break;
+        case '\f':
+            fprintf(stdout, "\\f");
+            break;
+        case '\n':
+            fprintf(stdout, "\\n");
+            break;
+        case '\r':
+            fprintf(stdout, "\\r");
+            break;
+        case '\t':
+            fprintf(stdout, "\\t");
+            break;
+        case '\\':
+            fprintf(stdout, "\\\\");
+            break;
+        case '"':
+            fprintf(stdout, "\\\"");
+            break;
+        default:
+            fputc(c, stdout);
+        }
+    }
+    fprintf(stdout, "%s\"", s);
+}
