@@ -78,9 +78,19 @@ int main(void)
 #include <stdio.h>
 #include <string.h>
 
+#define STB_DS_IMPLEMENTATION
+#include "stb_ds.h"
+
 #include <raylib.h>
 #define RAYMATH_IMPLEMENTATION
 #include <raymath.h>
+
+#include "geojson.h"
+
+#include "maths.h"
+
+Vector2 offset;
+Vector2 scale;
 
 const Vector3 up      = {  0,  1,  0 };
 const Vector3 down    = {  0, -1,  0 };
@@ -104,8 +114,8 @@ static Mesh GenMeshSphereEx(float radius, int resolution);
 
 typedef struct
 {
-    float longitude;
     float latitude;
+    float longitude;
 } Coordinate;
 
 // Calculate latitude and longitude (in radians) from point on unit sphere
@@ -126,31 +136,35 @@ static Vector3 coordinateToPoint(Coordinate coordinate)
     return (Vector3){x, y, z};
 }
 
-float map(float input, float input_start, float input_end, float output_start, float output_end)
-{
-    float slope = 1.0 * (output_end - output_start) / (input_end - input_start);
-//    float output = output_start + round(slope * (input - input_start));
-    /** CHECH output VARIABLE. Should be rounded? **/
-    float output = output_start + slope * (input - input_start);
-    return output;
-}
+//float map(float input, float input_start, float input_end, float output_start, float output_end)
+//{
+//    float slope = 1.0 * (output_end - output_start) / (input_end - input_start);
+////    float output = output_start + round(slope * (input - input_start));
+//    /** CHECH output VARIABLE. Should be rounded? **/
+//    float output = output_start + slope * (input - input_start);
+//    return output;
+//}
 
 //------------------------------------------------------------------------------------
 // Program main entry point
 //------------------------------------------------------------------------------------
-int main(void)
+int main(int argc, char *argv[])
 {
     // Initialization
     //--------------------------------------------------------------------------------------
     const int screenWidth = 800;
     const int screenHeight = 450;
 
+    Vector3 linePen = Vector3Zero();
+    bool linePenFirst = true;
+    int currentCountry = 113;
+
     InitWindow(screenWidth, screenHeight, "raylib [models] example - mesh generation");
 
     // We generate a checked image for texturing
     Image image = {};
-    image = GenImageChecked(10, 10, 1, 1, BLUE, YELLOW);
-//    image = LoadImage("ruudskog_arbor.png");
+//    image = GenImageChecked(10, 10, 1, 1, BLACK, BLACK);
+    image = LoadImage("Colour_8192x4096.jpg");
     Texture2D texture = LoadTextureFromImage(image);
 
     Model plane = { 0 };
@@ -158,7 +172,7 @@ int main(void)
     Model sphere = { 0 };
     plane = LoadModelFromMesh(GenMeshPlaneEx(up, 10, 10, 0.001f, 10, 10));
     cube = LoadModelFromMesh(GenMeshCubeEx(2, 3, 5, 2, 3, 5));
-    sphere = LoadModelFromMesh(GenMeshSphereEx(5, 25));
+    sphere = LoadModelFromMesh(GenMeshSphereEx(20, 25));
 
     // Generated meshes could be exported as .obj files
     //ExportMesh(models.meshes[0], "plane.obj");
@@ -170,7 +184,7 @@ int main(void)
 
     // Define the camera to look into our 3d world
     Camera camera = {
-            position:   { 0.0f, 10.0f, 20.0f },
+            position:   { 0.0f, 20.0f, -30.0f },
             target:     { 0.0f, 0.0f, 0.0f },
             up:         { 0.0f, 1.0f, 0.0f },
             fovy:       45.0f,
@@ -179,6 +193,20 @@ int main(void)
 
     // Model drawing position
     Vector3 position = { 0.0f, 0.0f, 0.0f };
+
+    // GeoJSON stuff
+    if (argc < 2) {
+//        fprintf(stdout, "usage : ./parser <GEOJSON file>\n");
+//        return 1;
+    }
+
+    char *fileName = "countries.geojson";
+    geojson_t geojson = {};
+    if (geojson_convert(&geojson, /*argv[1]*/fileName) < 0) {
+        return 1;
+    }
+
+    //--------------------------------------------------------------------------------------
 
     DisableCursor();
 
@@ -192,6 +220,16 @@ int main(void)
         //----------------------------------------------------------------------------------
         UpdateCamera(&camera, CAMERA_FREE);
 
+        if (IsKeyPressed('2')) {
+            if (currentCountry < arrlen(geojson.m_feature)-1) {
+                currentCountry ++;
+            }
+        }
+        if (IsKeyPressed('1')) {
+            if (currentCountry > 0) {
+                currentCountry --;
+            }
+        }
         //----------------------------------------------------------------------------------
 
         // Draw
@@ -202,18 +240,138 @@ int main(void)
 
             BeginMode3D(camera); {
 
-                position = (Vector3){ -10, 0, 0 };
+                ///////////////////////////////////////////////////////////////////////////////////////
+                //render geojson
+                ///////////////////////////////////////////////////////////////////////////////////////
 
-                DrawModel(plane, position, 1.0f, WHITE);
-                DrawModelWires(plane, position, 1.0f, RED);
-                position = Vector3Add(position, (Vector3){ 10, 0, 0 });
+//                fprintf(stdout, "\n");
 
-                DrawModel(cube, position, 1.0f, WHITE);
-                DrawModelWires(cube, position, 1.001f, RED);
-                position = Vector3Add(position, (Vector3){ 10, 0, 0 });
+                size_t size_features = arrlen(geojson.m_feature);
+                for (size_t idx_fet = 0; idx_fet < size_features; idx_fet++) {
+//                for (size_t idx_fet = currentCountry; idx_fet < currentCountry+1; idx_fet++) {
+                  feature_t feature = geojson.m_feature[idx_fet];
 
+//                  printf("NAME: \"%s\" [%ld/%ld]\n", feature.m_name, idx_fet+1, size_features);
+
+                  float m = map(idx_fet, 0, size_features-1, 0.0f, 360.0f);
+                  Color countryColor = ColorFromHSV(m, 1.0f, 1.0f);
+
+                  size_t size_geometry = arrlen(feature.m_geometry);
+                  for (size_t idx_geo = 0; idx_geo < size_geometry; idx_geo++) {
+                    geometry_t geometry = feature.m_geometry[idx_geo];
+
+//                    printf("  GEOMETRY TYPE: \"%s\" [%ld/%ld]\n", geometry.m_type, idx_geo+1, size_geometry);
+
+                    size_t size_pol = arrlen(geometry.m_polygons);
+                    for (size_t idx_pol = 0; idx_pol < size_pol; idx_pol++) {
+                      polygon_t polygon = geometry.m_polygons[idx_pol];
+                      size_t size_crd = arrlen(polygon.m_coord);
+
+                      if (size_crd == 0) {
+                        continue;
+                      }
+
+                      /*std::vector<*/double *lat = NULL;
+                      /*std::vector<*/double *lon = NULL;
+
+                      for (size_t idx_crd = 0; idx_crd < size_crd; idx_crd++) {
+                        arrput(lat, polygon.m_coord[idx_crd].y);
+                        arrput(lon, -polygon.m_coord[idx_crd].x);
+                      }
+
+                      ///////////////////////////////////////////////////////////////////////////////////////
+                      //render each polygon as a vector of vertices
+                      ///////////////////////////////////////////////////////////////////////////////////////
+
+                      if (strcmp(geometry.m_type, "Point") == 0) {
+//                          printf("    [Point] [%ld/%ld/%ld]\n", idx_pol+1, size_pol, size_crd);
+
+                          // since we are dealing with points idx_crd showld be 1
+                          // so the index could be just 0, with no loop
+                          for (int idx_crd = 0; idx_crd < size_crd; ++idx_crd) {
+                              Coordinate c = { DEG2RAD*lat[idx_crd], DEG2RAD*lon[idx_crd] };
+                              Vector3 point = coordinateToPoint(c);
+                              point = Vector3Scale(point, 20.0f);
+                              if (linePenFirst) {
+                                  linePen = point;
+                                  linePenFirst = false;
+                              }
+
+                              if (currentCountry == idx_fet) {
+                                  DrawCube(point, 0.01, 0.01, 0.01, countryColor);
+                              } else {
+                                  DrawLine3D(linePen, point, countryColor);
+                              }
+
+                              linePen = point;
+//                              printf("      %f, %f\n", lat[idx_crd], lon[idx_crd]);
+                          }
+                      }
+                      else if (strcmp(geometry.m_type, "Polygon") == 0) {
+//                          printf("    [Polygon] [%ld/%ld/%ld]\n", idx_pol+1, size_pol, size_crd);
+
+                          for (int idx_crd = 0; idx_crd < size_crd; ++idx_crd) {
+                              Coordinate c = { DEG2RAD*lat[idx_crd], DEG2RAD*lon[idx_crd] };
+                              Vector3 point = coordinateToPoint(c);
+                              point = Vector3Scale(point, 20.0f);
+                              if (linePenFirst) {
+                                  linePen = point;
+                                  linePenFirst = false;
+                              }
+
+                              if (currentCountry == idx_fet) {
+                                  DrawCube(point, 0.01, 0.01, 0.01, countryColor);
+                              } else {
+                                  DrawLine3D(linePen, point, countryColor);
+                              }
+
+                              linePen = point;
+//                              printf("      %f, %f\n", lat[idx_crd], lon[idx_crd]);
+                          }
+                      }
+                      else if (strcmp(geometry.m_type, "MultiPolygon") == 0) {
+//                          printf("    [MultiPolygon] [%ld/%ld/%ld]\n", idx_pol+1, size_pol, size_crd);
+
+                          for (int idx_crd = 0; idx_crd < size_crd; ++idx_crd) {
+                              Coordinate c = { DEG2RAD*lat[idx_crd], DEG2RAD*lon[idx_crd] };
+                              Vector3 point = coordinateToPoint(c);
+                              point = Vector3Scale(point, 20.0f);
+                              if (linePenFirst) {
+                                  linePen = point;
+                                  linePenFirst = false;
+                              }
+
+                              if (currentCountry == idx_fet) {
+                                  DrawCube(point, 0.01, 0.01, 0.01, countryColor);
+                              } else {
+                                  DrawLine3D(linePen, point, countryColor);
+                              }
+
+                              linePen = point;
+//                              printf("      %f, %f\n", lat[idx_crd], lon[idx_crd]);
+                          }
+                      }
+
+                      arrfree(lat);
+                      arrfree(lon);
+
+                      linePenFirst = true;
+                    }  //idx_pol
+                  } //idx_geo
+                } //idx_fet
+
+//                position = (Vector3){ -10, 0, 0 };
+//
+//                DrawModel(plane, position, 1.0f, WHITE);
+//                DrawModelWires(plane, position, 1.0f, RED);
+//                position = Vector3Add(position, (Vector3){ 10, 0, 0 });
+//
+//                DrawModel(cube, position, 1.0f, WHITE);
+//                DrawModelWires(cube, position, 1.001f, RED);
+//                position = Vector3Add(position, (Vector3){ 10, 0, 0 });
+//
                 DrawModel(sphere, position, 1.0f, WHITE);
-                DrawModelWires(sphere, position, 1.001f, RED);
+//                DrawModelWires(sphere, position, 1.001f, RED);
 
                 DrawGrid(10, 1.0);
 
@@ -494,11 +652,11 @@ static Mesh GenMeshSphereEx(float radius, int resolution)
 
         Coordinate coor = pointToCoordinate(v);
 
-        float lat = map(coor.latitude, -M_PI,    M_PI,   0.0f, 1.0f);
-        float lon = map(coor.longitude, M_PI_2, -M_PI_2, 0.0f, 1.0f);
+        float lon = map(coor.longitude, -M_PI,    M_PI, 0.0f, 1.0f);
+        float lat = map(coor.latitude, M_PI_2, -M_PI_2,   0.0f, 1.0f);
 
-        mesh.texcoords[tui] = -lat+1.0f;
-        mesh.texcoords[tvi] = lon;
+        mesh.texcoords[tui] = -lon+1.0f;
+        mesh.texcoords[tvi] = lat;
     }
 
     // Mesh normals array
