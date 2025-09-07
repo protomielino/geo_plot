@@ -21,7 +21,7 @@ int main(void)
     InitWindow(screenWidth, screenHeight, "Proiezione di un'immagine su una sfera");
 
     // Carica la texture
-    Image image = LoadImage("/media/ciccio/92de1001-dd72-4a54-a6ae-02af7976c4da/home/_offoF/gebco_08_rev_elev_21600x10800.png");
+    Image image = LoadImage("gebco_08_rev_elev_21600x10800.png");
 
     // Imposta la telecamera
     Camera camera = { 0 };
@@ -148,14 +148,15 @@ int main(void)
     InitWindow(screenWidth, screenHeight, "raylib [models] example - mesh generation");
 
     // We generate a checked image for texturing
-    Image image = GenImageChecked(2, 2, 1, 1, BLUE, YELLOW);
-//    Image image = LoadImage("Colour_8192x4096.jpg");
+    Image image = {};
+    image = GenImageChecked(10, 10, 1, 1, BLUE, YELLOW);
+//    image = LoadImage("ruudskog_arbor.png");
     Texture2D texture = LoadTextureFromImage(image);
 
     Model plane = { 0 };
     Model cube = { 0 };
     Model sphere = { 0 };
-    plane = LoadModelFromMesh(GenMeshPlaneEx((Vector3){1, 0, 1}, 10, 10, 0.001f, 10, 10));
+    plane = LoadModelFromMesh(GenMeshPlaneEx(up, 10, 10, 0.001f, 10, 10));
     cube = LoadModelFromMesh(GenMeshCubeEx(2, 3, 5, 2, 3, 5));
     sphere = LoadModelFromMesh(GenMeshSphereEx(5, 25));
 
@@ -287,13 +288,13 @@ static Mesh GenMeshPlaneEx(Vector3 normal, float width, float length, float dept
     // Normals definition
     Vector3 *normals = (Vector3 *)RL_MALLOC(vertexCount*sizeof(Vector3));
     for (int n = 0; n < vertexCount; n++)
-        normals[n] = normal;
+        normals[n] = Vector3Normalize(normal);
 
     // TexCoords definition
     Vector2 *texcoords = (Vector2 *)RL_MALLOC(vertexCount*sizeof(Vector2));
     for (int v = 0; v < resY; v++) {
         for (int u = 0; u < resX; u++) {
-            texcoords[u + v*resX] = (Vector2){ (float)u/(resX - 1), (float)v/(resY - 1) };
+            texcoords[u + v*resX] = (Vector2){ (float)u/(resX - 1), -(float)v/(resY - 1)+1.0f };
         }
     }
 
@@ -493,10 +494,10 @@ static Mesh GenMeshSphereEx(float radius, int resolution)
 
         Coordinate coor = pointToCoordinate(v);
 
-        float lat = map(coor.latitude,  M_PI, -M_PI, 0.0f, 1.0f);
+        float lat = map(coor.latitude, -M_PI,    M_PI,   0.0f, 1.0f);
         float lon = map(coor.longitude, M_PI_2, -M_PI_2, 0.0f, 1.0f);
 
-        mesh.texcoords[tui] = lat;
+        mesh.texcoords[tui] = -lat+1.0f;
         mesh.texcoords[tvi] = lon;
     }
 
