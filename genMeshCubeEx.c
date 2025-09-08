@@ -108,7 +108,7 @@ Vector3 faceNormal[] = {
 };
 int numNormals = sizeof(faceNormal)/sizeof(faceNormal[0]);
 
-static Mesh GenMeshPlaneEx(Vector3 normal, float width, float length, float depth, int resX, int resY);
+static Mesh GenMeshPlaneEx(Vector3 normal, float width, float length, float depth, int resX, int resY, bool upload);
 static Mesh GenMeshCubeEx(float width, float length, float depth, int resX, int resY, int resZ);
 static Mesh GenMeshSphereEx(float radius, int resolution);
 
@@ -118,22 +118,33 @@ typedef struct
     float longitude;
 } Coordinate;
 
+// the x-axis goes through (0,90) (east);
+// and the y-axis goes through the poles (north).
+// the z-axis goes through long,lat (0,0), so longitude 0 meets the equator (longitude of greenwich);
+// R is the approximate radius of earth (e.g. 6371 km).
+#define R 1.0f//6371.0f
 // Calculate latitude and longitude (in radians) from point on unit sphere
 static Coordinate pointToCoordinate(Vector3 pointOnUnitSphere)
 {
-    float latitude = asinf(pointOnUnitSphere.y);
-    float longitude = atan2f(pointOnUnitSphere.x, -pointOnUnitSphere.z);
-    return (Coordinate){latitude, longitude};
-}
+    float latitude = asin(pointOnUnitSphere.y / R);
+    float longitude = atan2(pointOnUnitSphere.x, pointOnUnitSphere.z);
 
+//    float latitude = asinf(pointOnUnitSphere.y);
+//    float longitude = atan2f(pointOnUnitSphere.x, -pointOnUnitSphere.z);
+    return (Coordinate){ latitude, longitude };
+}
 // Calculate point on unit sphere given latitude and longitude (in radians)
 static Vector3 coordinateToPoint(Coordinate coordinate)
 {
-    float y =  sinf(coordinate.latitude);
-    float r =  cosf(coordinate.latitude);
-    float x =  sinf(coordinate.longitude) * r;
-    float z = -cosf(coordinate.longitude) * r;
-    return (Vector3){x, y, z};
+    float x = R * cos(coordinate.latitude) * sin(coordinate.longitude);
+    float y = R * sin(coordinate.latitude);
+    float z = R * cos(coordinate.latitude) * cos(coordinate.longitude);
+
+//    float y =  sinf(coordinate.latitude);
+//    float r =  cosf(coordinate.latitude);
+//    float x =  sinf(coordinate.longitude) * r;
+//    float z = -cosf(coordinate.longitude) * r;
+    return (Vector3){ x, y, z };
 }
 
 //float map(float input, float input_start, float input_end, float output_start, float output_end)
@@ -152,8 +163,8 @@ int main(int argc, char *argv[])
 {
     // Initialization
     //--------------------------------------------------------------------------------------
-    const int screenWidth = 800;
-    const int screenHeight = 450;
+    const int screenWidth = 1360;
+    const int screenHeight = 1000;
 
     Vector3 linePen = Vector3Zero();
     bool linePenFirst = true;
@@ -170,7 +181,7 @@ int main(int argc, char *argv[])
     Model plane = { 0 };
     Model cube = { 0 };
     Model sphere = { 0 };
-    plane = LoadModelFromMesh(GenMeshPlaneEx(up, 10, 10, 0.001f, 10, 10));
+    plane = LoadModelFromMesh(GenMeshPlaneEx(up, 10, 10, 0.0f, 10, 10, true));
     cube = LoadModelFromMesh(GenMeshCubeEx(2, 3, 5, 2, 3, 5));
     sphere = LoadModelFromMesh(GenMeshSphereEx(20, 25));
 
@@ -183,11 +194,16 @@ int main(int argc, char *argv[])
     sphere.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = texture;
 
     // Define the camera to look into our 3d world
+Coordinate paris = { DEG2RAD*48.864716, DEG2RAD*2.349014 };
+Coordinate london = { DEG2RAD*51.509865, DEG2RAD*-0.118092 };
+    Coordinate cameraCoord = paris;
+    Vector3 cameraPosition = coordinateToPoint(cameraCoord);
+    cameraPosition = Vector3Scale(cameraPosition, 25);
     Camera camera = {
-            position:   { 30.0f, 25.0f, 5.0f },
+            position:   cameraPosition,
             target:     { 0.0f, 0.0f, 0.0f },
             up:         { 0.0f, 1.0f, 0.0f },
-            fovy:       30.0f,
+            fovy:       60.0f,
             projection: 0
     };
 
@@ -245,13 +261,9 @@ int main(int argc, char *argv[])
                 //render geojson
                 ///////////////////////////////////////////////////////////////////////////////////////
 
-//                fprintf(stdout, "\n");
-
                 size_t size_features = arrlen(geojson.m_feature);
                 for (size_t idx_fet = 0; idx_fet < size_features; idx_fet++) {
-//                for (size_t idx_fet = currentCountry; idx_fet < currentCountry+1; idx_fet++) {
                   feature_t feature = geojson.m_feature[idx_fet];
-
 //                  printf("NAME: \"%s\" [%ld/%ld]\n", feature.m_name, idx_fet+1, size_features);
 
                   float m = map(idx_fet, 0, size_features-1, 0.0f, 360.0f);
@@ -260,7 +272,6 @@ int main(int argc, char *argv[])
                   size_t size_geometry = arrlen(feature.m_geometry);
                   for (size_t idx_geo = 0; idx_geo < size_geometry; idx_geo++) {
                     geometry_t geometry = feature.m_geometry[idx_geo];
-
 //                    printf("  GEOMETRY TYPE: \"%s\" [%ld/%ld]\n", geometry.m_type, idx_geo+1, size_geometry);
 
                     size_t size_pol = arrlen(geometry.m_polygons);
@@ -276,19 +287,19 @@ int main(int argc, char *argv[])
                       /*std::vector<*/double *lon = NULL;
 
                       for (size_t idx_crd = 0; idx_crd < size_crd; idx_crd++) {
-                        arrput(lat, polygon.m_coord[idx_crd].y);
-                        arrput(lon, -polygon.m_coord[idx_crd].x);
+                        arrput(lat, polygon.m_coord[idx_crd].latitude);
+                        arrput(lon, polygon.m_coord[idx_crd].longitude);
                       }
 
                       ///////////////////////////////////////////////////////////////////////////////////////
                       //render each polygon as a vector of vertices
                       ///////////////////////////////////////////////////////////////////////////////////////
 
-                      if (strcmp(geometry.m_type, "Point") == 0) {
-//                          printf("    [Point] [%ld/%ld/%ld]\n", idx_pol+1, size_pol, size_crd);
-
-                          // since we are dealing with points idx_crd showld be 1
-                          // so the index could be just 0, with no loop
+                      if (
+                              strcmp(geometry.m_type, "Point") == 0 ||
+                              strcmp(geometry.m_type, "Polygon") == 0 ||
+                              strcmp(geometry.m_type, "MultiPolygon") == 0)
+                      {
                           for (int idx_crd = 0; idx_crd < size_crd; ++idx_crd) {
                               Coordinate c = { DEG2RAD*lat[idx_crd], DEG2RAD*lon[idx_crd] };
                               Vector3 point = coordinateToPoint(c);
@@ -298,54 +309,24 @@ int main(int argc, char *argv[])
                                   linePenFirst = false;
                               }
 
-                              DrawPoint3D(point, countryColor);
-
-                              linePen = point;
-//                              printf("      %f, %f\n", lat[idx_crd], lon[idx_crd]);
-                          }
-                      }
-                      else if (strcmp(geometry.m_type, "Polygon") == 0) {
-//                          printf("    [Polygon] [%ld/%ld/%ld]\n", idx_pol+1, size_pol, size_crd);
-
-                          for (int idx_crd = 0; idx_crd < size_crd; ++idx_crd) {
-                              Coordinate c = { DEG2RAD*lat[idx_crd], DEG2RAD*lon[idx_crd] };
-                              Vector3 point = coordinateToPoint(c);
-                              point = Vector3Scale(point, 20.0f);
-                              if (linePenFirst) {
+                              if (strcmp(geometry.m_type, "Point") == 0) {
+                                  DrawPoint3D(point, countryColor);
                                   linePen = point;
-                                  linePenFirst = false;
-                              }
-
-                              if (currentCountry == idx_fet) {
-                                  DrawCube(point, 0.01, 0.01, 0.01, countryColor);
-                              } else {
-                                  DrawLine3D(linePen, point, countryColor);
-                              }
-
-                              linePen = point;
-//                              printf("      %f, %f\n", lat[idx_crd], lon[idx_crd]);
-                          }
-                      }
-                      else if (strcmp(geometry.m_type, "MultiPolygon") == 0) {
-//                          printf("    [MultiPolygon] [%ld/%ld/%ld]\n", idx_pol+1, size_pol, size_crd);
-
-                          for (int idx_crd = 0; idx_crd < size_crd; ++idx_crd) {
-                              Coordinate c = { DEG2RAD*lat[idx_crd], DEG2RAD*lon[idx_crd] };
-                              Vector3 point = coordinateToPoint(c);
-                              point = Vector3Scale(point, 20.0f);
-                              if (linePenFirst) {
+                              } else if (strcmp(geometry.m_type, "Polygon") == 0) {
+                                  if (currentCountry == idx_fet) {
+                                      DrawCube(point, 0.01, 0.01, 0.01, countryColor);
+                                  } else {
+                                      DrawLine3D(linePen, point, countryColor);
+                                  }
                                   linePen = point;
-                                  linePenFirst = false;
+                              } else if (strcmp(geometry.m_type, "MultiPolygon") == 0) {
+                                  if (currentCountry == idx_fet) {
+                                      DrawCube(point, 0.01, 0.01, 0.01, countryColor);
+                                  } else {
+                                      DrawLine3D(linePen, point, countryColor);
+                                  }
+                                  linePen = point;
                               }
-
-                              if (currentCountry == idx_fet) {
-                                  DrawCube(point, 0.01, 0.01, 0.01, countryColor);
-                              } else {
-                                  DrawLine3D(linePen, point, countryColor);
-                              }
-
-                              linePen = point;
-//                              printf("      %f, %f\n", lat[idx_crd], lon[idx_crd]);
                           }
                       }
 
@@ -357,33 +338,37 @@ int main(int argc, char *argv[])
                   } //idx_geo
                 } //idx_fet
 
+                ///////////////////////////////////////////////////////////////////////////////////////
+                //render raylib models
+                ///////////////////////////////////////////////////////////////////////////////////////
+
 //                position = (Vector3){ -10, 0, 0 };
-//
-//                DrawModel(plane, position, 1.0f, WHITE);
-//                DrawModelWires(plane, position, 1.0f, RED);
+
+                DrawModel(plane, position, 1.0f, WHITE);
+                DrawModelWires(plane, position, 1.0f, YELLOW);
 //                position = Vector3Add(position, (Vector3){ 10, 0, 0 });
-//
-//                DrawModel(cube, position, 1.0f, WHITE);
-//                DrawModelWires(cube, position, 1.001f, RED);
+
+                DrawModel(cube, position, 1.0f, WHITE);
+                DrawModelWires(cube, position, 1.001f, WHITE);
 //                position = Vector3Add(position, (Vector3){ 10, 0, 0 });
-//
+
                 DrawModel(sphere, position, 1.0f, WHITE);
-//                DrawModelWires(sphere, position, 1.001f, RED);
+//                DrawModelWires(sphere, position, 1.001f, WHITE);
 
                 DrawGrid(10, 1.0);
 
                 Vector3 pos;
                 pos = (Vector3){0, 0, 0};
-                DrawCubeWires(pos, 2.01, 2.01, 2, MAGENTA);
+                DrawCubeWires(pos, 1.01, 1.01, 1.01, MAGENTA);
                 
                 pos = (Vector3){2, 0, 0};
-                DrawCubeWires(pos, 0.1, 0.1, 0.1, MAROON);
+                DrawCube(pos, 0.1, 0.1, 0.1, MAROON);
                 DrawLine3D(Vector3Zero(), pos, MAROON);
                 pos = (Vector3){0, 2, 0};
-                DrawCubeWires(pos, 0.1, 0.1, 0.1, LIME);
+                DrawCube(pos, 0.1, 0.1, 0.1, LIME);
                 DrawLine3D(Vector3Zero(), pos, LIME);
                 pos = (Vector3){0, 0, 2};
-                DrawCubeWires(pos, 0.1, 0.1, 0.1, DARKBLUE);
+                DrawCube(pos, 0.1, 0.1, 0.1, DARKBLUE);
                 DrawLine3D(Vector3Zero(), pos, DARKBLUE);
 
             } EndMode3D();
@@ -397,11 +382,13 @@ int main(int argc, char *argv[])
     UnloadImage(image);
     UnloadTexture(texture); // Unload texture
 
+    geojson_dtor(&geojson);
+
     // Unload models data (GPU VRAM)
 
     UnloadModel(plane);
     UnloadModel(cube);
-    UnloadModel(sphere);
+//    UnloadModel(sphere);
 
     CloseWindow();          // Close window and OpenGL context
     //--------------------------------------------------------------------------------------
@@ -410,64 +397,73 @@ int main(int argc, char *argv[])
 }
 
 // Generate plane mesh (with subdivisions) oriented by normal
-static Mesh GenMeshPlaneEx(Vector3 normal, float width, float length, float depth, int resX, int resY)
+static Mesh GenMeshPlaneEx(Vector3 normal, float width, float length, float depth, int resX, int resZ, bool upload)
 {
     resX++;
-    resY++;
+    resZ++;
 
     // Vertices definition
-    int vertexCount = resX*resY; // vertices get reused for the faces
+    int vertexCount = resX*resZ; // vertices get reused for the faces
 
     normal = Vector3Normalize(normal);
 
     Vector3 axisA = { normal.y, normal.z, normal.x };
-    Vector3 axisB = Vector3CrossProduct(normal, axisA);
-
-    normal = Vector3Scale(normal, depth);
+    Vector3 axisB = Vector3CrossProduct(axisA, normal);
 
     Vector3 *vertices = (Vector3 *)RL_MALLOC(vertexCount*sizeof(Vector3));
-    for (int y = 0; y < resY; y++) {
-        for (int x = 0; x < resX; x++) {
-            int vertexIndex = x + y*resX;
-            Vector2 t = { (float)x, (float)y };
-            t.x /= (float)resX-1.0f;
-            t.y /= (float)resY-1.0f;
-            Vector3 pointA = Vector3Scale(axisA, (t.x - 0.5f)*width);
-            Vector3 pointB = Vector3Scale(axisB, (t.y - 0.5f)*length);
+    for (int z = 0; z < resZ; z++) {
+        // [-length/2, length/2]
+        for (int x = 0; x < resX; x++)
+        {
+            // [-width/2, width/2]
+            int vertexIndex = x + z * resX;
+
+            Vector2 t = { x, z };
+            t.x /= (float)resX - 1.0f;
+            t.y /= (float)resZ - 1.0f;
+            Vector3 pointA = Vector3Scale(axisA, (t.x - 0.5f) * width);
+            Vector3 pointB = Vector3Scale(axisB, (t.y - 0.5f) * length);
             Vector3 point = Vector3Add(pointA, pointB);
-            point = Vector3Add(point, Vector3Scale(normal, 0.5f));
+
+            Vector3 offset = Vector3Scale(Vector3Scale(normal, 0.5f), depth);
+            point = Vector3Add(offset, point);
             vertices[vertexIndex] = point;
         }
     }
 
     // Normals definition
     Vector3 *normals = (Vector3 *)RL_MALLOC(vertexCount*sizeof(Vector3));
-    for (int n = 0; n < vertexCount; n++)
-        normals[n] = Vector3Normalize(normal);
+    for (int n = 0; n < vertexCount; n++) {
+        normals[n] = normal;
+    }
 
     // TexCoords definition
     Vector2 *texcoords = (Vector2 *)RL_MALLOC(vertexCount*sizeof(Vector2));
-    for (int v = 0; v < resY; v++) {
+    for (int v = 0; v < resZ; v++) {
         for (int u = 0; u < resX; u++) {
-            texcoords[u + v*resX] = (Vector2){ (float)u/(resX - 1), -(float)v/(resY - 1)+1.0f };
+            texcoords[u + v*resX] = (Vector2){ (float)u/(resX - 1), (float)v/(resZ - 1)+1.0f };
         }
     }
 
     // Triangles definition (indices)
-    int numFaces = (resX - 1)*(resY - 1);
+    int numFaces = (resX - 1)*(resZ - 1);
     int *triangles = (int *)RL_MALLOC(numFaces*6*sizeof(int));
     int t = 0;
     for (int face = 0; face < numFaces; face++) {
         // Retrieve lower left corner from face ind
         int i = face + face/(resX - 1);
 
-        triangles[t++] = i; // 0
-        triangles[t++] = i + 1; // 1
-        triangles[t++] = i + resX + 1; // 3
+        // 0 - 1
+        // | / |
+        // 2 - 3
 
-        triangles[t++] = i; // 0
-        triangles[t++] = i + resX + 1; // 3
         triangles[t++] = i + resX; // 2
+        triangles[t++] = i + 1; // 1
+        triangles[t++] = i; // 0
+
+        triangles[t++] = i + resX; // 2
+        triangles[t++] = i + resX + 1; // 3
+        triangles[t++] = i + 1; // 1
     }
 
     Mesh mesh = {};
@@ -509,8 +505,12 @@ static Mesh GenMeshPlaneEx(Vector3 normal, float width, float length, float dept
     RL_FREE(texcoords);
     RL_FREE(triangles);
 
-    // Upload vertex data to GPU (static mesh)
-    UploadMesh(&mesh, false);
+    // Upload vertex data to GPU (static mesh).
+    // If this plane is used to construct other meshes it might not be
+    // necessary to upload it to the GPU, for instance when
+    // called by GenMeshCubeEx which uploads its mesh by itself.
+    if (upload)
+        UploadMesh(&mesh, false);
 
     return mesh;
 }
@@ -544,22 +544,22 @@ static Mesh GenMeshCubeEx(float width, float length, float depth, int resX, int 
     for (int fi = 0; fi < numNormals; ++fi) {
         switch (fi) {
             case 0:
-                plane = GenMeshPlaneEx(up, width, depth, length, resX, resZ);
+                plane = GenMeshPlaneEx(up, width, depth, length, resX, resZ, true);
                 break;
             case 1:
-                plane = GenMeshPlaneEx(down, width, depth, length, resX, resZ);
+                plane = GenMeshPlaneEx(down, width, depth, length, resX, resZ, true);
                 break;
             case 2:
-                plane = GenMeshPlaneEx(right, depth, length, width, resZ, resY);
+                plane = GenMeshPlaneEx(right, depth, length, width, resZ, resY, true);
                 break;
             case 3:
-                plane = GenMeshPlaneEx(left, depth, length, width, resZ, resY);
+                plane = GenMeshPlaneEx(left, depth, length, width, resZ, resY, true);
                 break;
             case 4:
-                plane = GenMeshPlaneEx(front, length, width, depth, resY, resX);
+                plane = GenMeshPlaneEx(front, length, width, depth, resY, resX, true);
                 break;
             case 5:
-                plane = GenMeshPlaneEx(back, length, width, depth, resY, resX);
+                plane = GenMeshPlaneEx(back, length, width, depth, resY, resX, true);
                 break;
             default:
                 break;
@@ -649,11 +649,11 @@ static Mesh GenMeshSphereEx(float radius, int resolution)
 
         Coordinate coor = pointToCoordinate(v);
 
-        float lon = map(coor.longitude, -M_PI,    M_PI, 0.0f, 1.0f);
-        float lat = map(coor.latitude, M_PI_2, -M_PI_2,   0.0f, 1.0f);
+        float lat = map(coor.latitude,   M_PI_2, -M_PI_2, 0.0f, 1.0f);
+        float lon = map(coor.longitude, -M_PI,    M_PI,   0.0f, 1.0f);
 
-        mesh.texcoords[tui] = -lon+1.0f;
         mesh.texcoords[tvi] = lat;
+        mesh.texcoords[tui] = lon;
     }
 
     // Mesh normals array

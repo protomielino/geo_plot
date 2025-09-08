@@ -20,8 +20,8 @@
 typedef struct
 {
 //public:
-  double x;
-  double y;
+  double latitude;
+  double longitude;
 } coord_t;
 //public:
 //  coord_t(double x_, double y_) :
@@ -83,9 +83,8 @@ typedef struct
   /*std::vector<>*/feature_t *m_feature;
 } WT_API geojson_t;
 //public:
-//  geojson_t()
-//  {
-//  }
+geojson_t geojson_ctor();
+void geojson_dtor(geojson_t *this);
 int geojson_convert(geojson_t *this, const char* file_name);
 
 //private:

@@ -14,6 +14,32 @@ bool DATA_NEWLINE = false;
 bool OBJECT_NEWLINE = true;
 
 
+geojson_t geojson_ctor()
+{
+    geojson_t this = {};
+    return this;
+}
+void geojson_dtor(geojson_t *this)
+{
+    size_t feature_len = arrlen(this->m_feature);
+    for (int fi = 0; fi < feature_len; ++fi) {
+        feature_t f = this->m_feature[fi];
+        size_t geometry_len = arrlen(f.m_geometry);
+        for (int gi = 0; gi < geometry_len; ++gi) {
+            geometry_t g = f.m_geometry[gi];
+            size_t polygon_len = arrlen(g.m_polygons);
+            for (int pi = 0; pi < polygon_len; ++pi) {
+                polygon_t p = g.m_polygons[pi];
+                arrfree(p.m_coord);
+            }
+            arrfree(g.m_polygons);
+            free(g.m_type);
+        }
+        arrfree(f.m_geometry);
+    }
+    arrfree(this->m_feature);
+}
+
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 //geojson_convert
 /////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -41,7 +67,7 @@ int geojson_convert(geojson_t *this, const char* file_name)
 
     char *endptr;
     JsonValue value = {};
-    JsonAllocator allocator = {};
+    JsonAllocator allocator = JsonAllocator_ctor();
     int rc = jsonParse(buf, &endptr, &value, &allocator);
     if (rc != JSON_OK) {
         fprintf(stdout, "invalid JSON format for %s\n", buf);
@@ -49,9 +75,9 @@ int geojson_convert(geojson_t *this, const char* file_name)
     }
 
     geojson_parse_root(this, value);
-    geojson_dump_value(this, value, 0);
+//    geojson_dump_value(this, value, 0);
 
-    JsonAllocator_deallocate(&allocator);
+    JsonAllocator_dtor(&allocator);
 
     free(buf);
 
@@ -142,7 +168,7 @@ int geojson_parse_feature(geojson_t *this, JsonValue value)
                 //get name
                 if (strcmp(prp->key, "NAME") == 0 || strcmp(prp->key, "name") == 0 || strcmp(prp->key, "ADMIN") == 0) {
                     assert(JsonValue_getTag(&prp->value) == JSON_STRING);
-                    feature.m_name = strdup(JsonValue_toString(&prp->value));
+                    feature.m_name = JsonValue_toString(&prp->value);
 //                    fprintf(stdout, "NAME: %s\n", feature.m_name);
                 }
             }
@@ -182,13 +208,13 @@ int geojson_parse_geometry(geojson_t *this, JsonValue value, feature_t /*&*/*fea
                 /////////////////////////////////////////////////////////////////////////////////////////////////////
 
                 geometry_t geometry = {};
-                geometry.m_type = strdup(str_geometry_type);
+                geometry.m_type = str_geometry_type;
 
                 polygon_t polygon = {};
                 JsonValue arr_coord = node->value;
-                double lon = JsonValue_toNumber(&JsonValue_toNode(&arr_coord)->value);;
+                double lon = JsonValue_toNumber(&JsonValue_toNode(&arr_coord)->value);
                 double lat = JsonValue_toNumber(&JsonValue_toNode(&arr_coord)->next->value);
-                coord_t coord = { lon, lat };
+                coord_t coord = { lat, lon };
                 arrput(polygon.m_coord, coord);
                 arrput(geometry.m_polygons, polygon);
                 arrput(feature->m_geometry, geometry);
@@ -239,7 +265,7 @@ int geojson_parse_coordinates(geojson_t *this, JsonValue value, /*std::string*/c
                 assert(JsonValue_getTag(&crd) == JSON_ARRAY);
                 double lon = JsonValue_toNumber(&(JsonValue_toNode(&crd)->value));
                 double lat = JsonValue_toNumber(&(JsonValue_toNode(&crd)->next->value));
-                coord_t coord = { lon, lat };
+                coord_t coord = { lat, lon };
                 arrput(polygon.m_coord, coord);
             }
             arrput(geometry.m_polygons, polygon);
@@ -261,7 +287,7 @@ int geojson_parse_coordinates(geojson_t *this, JsonValue value, /*std::string*/c
                     JsonNode *n = JsonValue_toNode(&crd);
                     double lon = JsonValue_toNumber(&n->value);
                     double lat = JsonValue_toNumber(&n->next->value);
-                    coord_t coord = { lon, lat };
+                    coord_t coord = { lat, lon };
                     arrput(polygon.m_coord, coord);
                 }
                 arrput(geometry.m_polygons, polygon);

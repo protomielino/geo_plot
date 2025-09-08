@@ -101,10 +101,9 @@ typedef struct
         Zone *next;
         size_t used;
     } *head;
-
 } JsonAllocator;
 //public:
-//JsonAllocator() : head(nullptr) {};
+JsonAllocator JsonAllocator_ctor(); //: head(nullptr) {};
 //JsonAllocator(const JsonAllocator &) = delete;
 //JsonAllocator &operator=(const JsonAllocator &) = delete;
 //JsonAllocator(JsonAllocator &&x) : head(x.head) {
@@ -115,9 +114,7 @@ typedef struct
 //    x.head = nullptr;
 //    return *this;
 //}
-//~JsonAllocator() {
-//    deallocate();
-//}
+void JsonAllocator_dtor(JsonAllocator *this);
 void* JsonAllocator_allocate(JsonAllocator *this, size_t size);
 void JsonAllocator_deallocate(JsonAllocator *this);
 

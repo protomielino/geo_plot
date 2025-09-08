@@ -87,6 +87,19 @@ void* JsonAllocator_allocate(JsonAllocator *this, size_t size)
     return (char *)zone + sizeof(Zone);
 }
 
+JsonAllocator JsonAllocator_ctor()
+//: head(nullptr) {};
+{
+    JsonAllocator this = {};
+    this.head = NULL;
+    return this;
+}
+
+void JsonAllocator_dtor(JsonAllocator *this)
+{
+    JsonAllocator_deallocate(this);
+}
+
 void JsonAllocator_deallocate(JsonAllocator *this)
 {
     while (this->head) {
