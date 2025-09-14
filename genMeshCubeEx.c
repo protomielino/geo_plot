@@ -128,9 +128,6 @@ static Coordinate pointToCoordinate(Vector3 pointOnUnitSphere)
 {
     float latitude = asin(pointOnUnitSphere.y / R);
     float longitude = atan2(pointOnUnitSphere.x, pointOnUnitSphere.z);
-
-//    float latitude = asinf(pointOnUnitSphere.y);
-//    float longitude = atan2f(pointOnUnitSphere.x, -pointOnUnitSphere.z);
     return (Coordinate){ latitude, longitude };
 }
 // Calculate point on unit sphere given latitude and longitude (in radians)
@@ -139,22 +136,8 @@ static Vector3 coordinateToPoint(Coordinate coordinate)
     float x = R * cos(coordinate.latitude) * sin(coordinate.longitude);
     float y = R * sin(coordinate.latitude);
     float z = R * cos(coordinate.latitude) * cos(coordinate.longitude);
-
-//    float y =  sinf(coordinate.latitude);
-//    float r =  cosf(coordinate.latitude);
-//    float x =  sinf(coordinate.longitude) * r;
-//    float z = -cosf(coordinate.longitude) * r;
     return (Vector3){ x, y, z };
 }
-
-//float map(float input, float input_start, float input_end, float output_start, float output_end)
-//{
-//    float slope = 1.0 * (output_end - output_start) / (input_end - input_start);
-////    float output = output_start + round(slope * (input - input_start));
-//    /** CHECH output VARIABLE. Should be rounded? **/
-//    float output = output_start + slope * (input - input_start);
-//    return output;
-//}
 
 //------------------------------------------------------------------------------------
 // Program main entry point
@@ -164,7 +147,7 @@ int main(int argc, char *argv[])
     // Initialization
     //--------------------------------------------------------------------------------------
     const int screenWidth = 1360;
-    const int screenHeight = 1000;
+    const int screenHeight = 700;
 
     Vector3 linePen = Vector3Zero();
     bool linePenFirst = true;
@@ -183,10 +166,10 @@ int main(int argc, char *argv[])
     Model sphere = { 0 };
     plane = LoadModelFromMesh(GenMeshPlaneEx(up, 10, 10, 0.0f, 10, 10, true));
     cube = LoadModelFromMesh(GenMeshCubeEx(2, 3, 5, 2, 3, 5));
-    sphere = LoadModelFromMesh(GenMeshSphereEx(20, 25));
+    sphere = LoadModelFromMesh(GenMeshSphereEx(20, 50));
 
     // Generated meshes could be exported as .obj files
-    //ExportMesh(models.meshes[0], "plane.obj");
+    //ExportMesh(plane.meshes[0], "plane.obj");
 
     // Set checked texture as default diffuse component for all models material
     plane.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = texture;
@@ -194,14 +177,16 @@ int main(int argc, char *argv[])
     sphere.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = texture;
 
     // Define the camera to look into our 3d world
-Coordinate paris = { DEG2RAD*48.864716, DEG2RAD*2.349014 };
+Coordinate rome = { DEG2RAD*41.902751, DEG2RAD*12.453136 };
 Coordinate london = { DEG2RAD*51.509865, DEG2RAD*-0.118092 };
-    Coordinate cameraCoord = paris;
+Coordinate paris = { DEG2RAD*48.864716, DEG2RAD*2.349014 };
+Coordinate texas = { DEG2RAD*31.0, DEG2RAD*-100.0 };
+    Coordinate cameraCoord = texas;
     Vector3 cameraPosition = coordinateToPoint(cameraCoord);
     cameraPosition = Vector3Scale(cameraPosition, 25);
     Camera camera = {
             position:   cameraPosition,
-            target:     { 0.0f, 0.0f, 0.0f },
+            target:     Vector3Zero(),
             up:         { 0.0f, 1.0f, 0.0f },
             fovy:       60.0f,
             projection: 0
@@ -373,6 +358,7 @@ Coordinate london = { DEG2RAD*51.509865, DEG2RAD*-0.118092 };
 
             } EndMode3D();
 
+        DrawFPS(10, 10);
         EndDrawing();
         //----------------------------------------------------------------------------------
     }
@@ -388,7 +374,7 @@ Coordinate london = { DEG2RAD*51.509865, DEG2RAD*-0.118092 };
 
     UnloadModel(plane);
     UnloadModel(cube);
-//    UnloadModel(sphere);
+    UnloadModel(sphere);
 
     CloseWindow();          // Close window and OpenGL context
     //--------------------------------------------------------------------------------------
@@ -544,22 +530,22 @@ static Mesh GenMeshCubeEx(float width, float length, float depth, int resX, int 
     for (int fi = 0; fi < numNormals; ++fi) {
         switch (fi) {
             case 0:
-                plane = GenMeshPlaneEx(up, width, depth, length, resX, resZ, true);
+                plane = GenMeshPlaneEx(up, width, depth, length, resX, resZ, false);
                 break;
             case 1:
-                plane = GenMeshPlaneEx(down, width, depth, length, resX, resZ, true);
+                plane = GenMeshPlaneEx(down, width, depth, length, resX, resZ, false);
                 break;
             case 2:
-                plane = GenMeshPlaneEx(right, depth, length, width, resZ, resY, true);
+                plane = GenMeshPlaneEx(right, depth, length, width, resZ, resY, false);
                 break;
             case 3:
-                plane = GenMeshPlaneEx(left, depth, length, width, resZ, resY, true);
+                plane = GenMeshPlaneEx(left, depth, length, width, resZ, resY, false);
                 break;
             case 4:
-                plane = GenMeshPlaneEx(front, length, width, depth, resY, resX, true);
+                plane = GenMeshPlaneEx(front, length, width, depth, resY, resX, false);
                 break;
             case 5:
-                plane = GenMeshPlaneEx(back, length, width, depth, resY, resX, true);
+                plane = GenMeshPlaneEx(back, length, width, depth, resY, resX, false);
                 break;
             default:
                 break;
